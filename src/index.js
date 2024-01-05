@@ -3,6 +3,7 @@ const app = express();
 const database = require("./config/database.js");
 const dotenv = require("dotenv");
 const uploadRoutes = require("./routes/uploadRoutes");
+const queAnsRoutes = require("./routes/questionAnswerRoutes.js")
 const cors = require("cors");
 
 dotenv.config();
@@ -27,6 +28,7 @@ database.sync()
   });
 
 app.use("/api/v1", uploadRoutes);
+app.use("/api/v2", queAnsRoutes);
 
 const server = app.listen(process.env.PORT, () => {
   console.log(`server is working on http://localhost:${process.env.PORT}`);
