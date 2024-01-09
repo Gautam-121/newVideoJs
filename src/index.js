@@ -5,13 +5,21 @@ const dotenv = require("dotenv");
 const uploadRoutes = require("./routes/uploadRoutes");
 const queAnsRoutes = require("./routes/questionAnswerRoutes.js")
 const cors = require("cors");
+// const fileUpload = require("express-fileupload");
 
 dotenv.config();
+
+// Print memory usage information
+const memoryUsage = process.memoryUsage();
+console.log('Memory Usage:', memoryUsage);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("uploads"));
 app.use(cors());
+// app.use(fileUpload({
+//   useTempFiles: true
+// }))
 
 process.on("uncaughtException", (err) => {
   console.log(`Error ${err.message}`);

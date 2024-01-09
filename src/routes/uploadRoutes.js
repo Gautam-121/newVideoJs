@@ -13,9 +13,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-router.post("/upload/media", upload.fields([{ name: "video" }, { name: "vtt" }]) , uploadMediaData);
+router.post("/upload/media", upload.fields([{ name: "vtt" }]) , uploadMediaData);
 router.get("/getAllVideo", getAllVideo);
 router.get("/getVideoById/:id", getVideoById)
-router.put("/updateVideoById/:id" , upload.fields([{ name: "video" }, { name: "vtt" }]) ,  updateVideoById)
+// router.put("/updateVideoById/:id" , upload.fields([{ name: "video" }, { name: "vtt" }]) ,  updateVideoById)
 
 module.exports = router;
