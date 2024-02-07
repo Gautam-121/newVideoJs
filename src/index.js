@@ -34,8 +34,8 @@ database.sync()
 app.use("/api/v1", uploadRoutes);
 app.use("/api/v2", queAnsRoutes);
 
-const server = app.listen(process.env.PORT, localIp , () => {
-  console.log(`Server running at http://localhost:${process.env.PORT}`);
+const server = app.listen(process.env.PORT , () => {
+  console.log(`Server running at http://localhost:${process.env.PORT}/`);
 });
 
 process.on("unhandledRejection", (err) => {
