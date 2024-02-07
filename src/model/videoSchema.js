@@ -35,6 +35,10 @@ const VideoModel = database.define('video', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    vttFileJson: {
+        type: DataTypes.JSONB,
+        allowNull: false
+    }
 });
 
 module.exports = VideoModel

@@ -5,21 +5,17 @@ const dotenv = require("dotenv");
 const uploadRoutes = require("./routes/uploadRoutes");
 const queAnsRoutes = require("./routes/questionAnswerRoutes.js")
 const cors = require("cors");
-// const fileUpload = require("express-fileupload");
+const multer = require("multer")
 
 dotenv.config();
-
-// Print memory usage information
-const memoryUsage = process.memoryUsage();
-console.log('Memory Usage:', memoryUsage);
+const localIp = "192.168.1.74"
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("uploads"));
 app.use(cors());
-// app.use(fileUpload({
-//   useTempFiles: true
-// }))
+app.use(multer().any())
+
 
 process.on("uncaughtException", (err) => {
   console.log(`Error ${err.message}`);
@@ -38,8 +34,8 @@ database.sync()
 app.use("/api/v1", uploadRoutes);
 app.use("/api/v2", queAnsRoutes);
 
-const server = app.listen(process.env.PORT, () => {
-  console.log(`server is working on http://localhost:${process.env.PORT}`);
+const server = app.listen(process.env.PORT, localIp , () => {
+  console.log(`Server running at http://${localIp}:${process.env.PORT}/`);
 });
 
 process.on("unhandledRejection", (err) => {
