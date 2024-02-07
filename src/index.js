@@ -8,7 +8,7 @@ const cors = require("cors");
 const multer = require("multer")
 
 dotenv.config();
-const localIp = "192.168.1.74"
+// const localIp = "192.168.1.74"
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -35,7 +35,7 @@ app.use("/api/v1", uploadRoutes);
 app.use("/api/v2", queAnsRoutes);
 
 const server = app.listen(process.env.PORT, localIp , () => {
-  console.log(`Server running at http://${localIp}:${process.env.PORT}/`);
+  console.log(`Server running at http://localhost:${process.env.PORT}`);
 });
 
 process.on("unhandledRejection", (err) => {
