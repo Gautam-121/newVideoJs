@@ -7,36 +7,39 @@ const uploadMediaData = async (req, res) => {
   try {
 
     console.log("Enter")
-    const videoFilePath = req?.files["video"]?.[0]?.filename;
-    let vttFilePath = null;
-    const data = JSON.parse(JSON.stringify(req.body))
+    const data = req.body
+    const file = req.files
 
-    if (req.files?.["vtt"]?.[0]?.filename) {
-      vttFilePath = req.files["vtt"][0].filename
-    }
+    console.log(file)
 
-    if(!data.vttJson){
+    console.log(data)
+    console.log(Object.keys(data).length == 0)
+
+    if(Object.keys(data).length == 0){
       return res.status(400).json({
         success: false,
-        message: "Vtt Json file missing"
+        message: "video data missing"
       })
     }
 
-    const mediaResult = await VideoModel.create({
-      video_path: videoFilePath,
-      vtt_path: vttFilePath,
+    console.log(data)
+
+    const videoData = await VideoModel.create({
       video_id: data.id,
       title: data.title,
-      vttFileJson:data.vttJson
+      videoSelectedFile:data.selectedVideo
     });
+
+    console.log("Exist" ,videoData)
 
     return res.status(201).json({
       success: true,
       message: "Video Data Created Successfully",
-      mediaResult,
+      videoData,
     });
+
   } catch (error) {
-    res.status(500).send({
+    return res.status(500).send({
       success: false,
       message: error.message,
     })
@@ -44,26 +47,48 @@ const uploadMediaData = async (req, res) => {
 }
 
 // CREATING UPLOADMEDIA DATA
-const uploadMediaDatas = async (req, res) => {
-  try {
+// const uploadMediaDatas = async (req, res) => {
+//   try {
 
-    console.log("Enter")
-    const videoFilePath = JSON.parse(JSON.stringify(req.files))
-    const data = req.body
+//     console.log("Enter")
+//     const videoFilePath = JSON.parse(JSON.stringify(req.files))
+//     const data = JSON.parse(JSON.stringify(req.body))
 
-    console.log(data)
-    console.log(videoFilePath)
+//     console.log("data" , data)
+//     console.log("videoFilePath" , videoFilePath)
+//     console.log("video", data.video)
+//     console.log("videoSelected", JSON.parse(data.selectedVideo))
+//     console.log("videoSelected Id" , data.id)
 
-    return res.status(200).json({
-      status: true,
-      message: "data Come sussfully",
-    })
-  } catch (error) {
-    res.status(500).send({
+//     return res.status(200).json({
+//       status: true,
+//       message: "data Come sussfully",
+//       data:data.selectedVideo
+//     })
+//   } catch (error) {
+//     res.status(500).send({
+//       success: false,
+//       message: error.message,
+//     })
+//   }
+// }
+
+const uploadVideos = async(req , res , next)=>{
+
+  const videoFilePath = req?.files["video"]?.[0]?.filename;
+
+  if(!videoFilePath){
+    return res.status(400).json({
       success: false,
-      message: error.message,
+      message: "Missing Video File"
     })
   }
+
+  return res.status(201).json({
+    success:true,
+    message:"Video Uploaded Successfully",
+    videoUrl: videoFilePath
+  })
 }
 
 
@@ -71,6 +96,7 @@ const uploadMediaDatas = async (req, res) => {
 // FETCH ALL UPLOADMEDIA 
 const getAllVideo = async (req, res) => {
   try {
+
     const videoResult = await VideoModel.findAll();
     return res.status(200).json({
       success: true,
@@ -197,4 +223,4 @@ const updateVideoById = async (req, res, next) => {
 };
 
 
-module.exports = { uploadMediaData, getAllVideo, getVideoById, updateVideoById,uploadMediaDatas }
+module.exports = { uploadMediaData, getAllVideo, getVideoById, updateVideoById,uploadVideos }

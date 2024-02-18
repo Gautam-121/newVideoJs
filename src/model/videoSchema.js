@@ -21,21 +21,7 @@ const VideoModel = database.define('video', {
         },
         allowNull: false,
     },
-    video_path: {
-        type: DataTypes.STRING,
-        validate: {
-            notEmpty: {
-                args: true,
-                msg: 'VideoPath is not be empty.'
-            }
-        },
-        allowNull: false,
-    },
-    vtt_path: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    vttFileJson: {
+    videoSelectedFile: {
         type: DataTypes.JSONB,
         allowNull: false
     }
