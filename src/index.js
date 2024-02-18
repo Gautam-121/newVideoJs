@@ -6,16 +6,27 @@ const uploadRoutes = require("./routes/uploadRoutes");
 const queAnsRoutes = require("./routes/questionAnswerRoutes.js")
 const cors = require("cors");
 const multer = require("multer")
+const {uploadVideo , createVideoData} = require("./controller/uploadControllers.js")
 
 dotenv.config();
-// const localIp = "192.168.1.74"
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("uploads"));
 app.use(cors());
-app.use(multer().any())
 
+const storage = multer.diskStorage({
+  destination: "./uploads",
+  filename: function (req, file, cb) {
+      cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage: storage });
+
+app.post("/api/v1/upload/media" , upload.fields([{ name: "video" }, { name: "vtt" }]), uploadVideo)
+
+app.post("/api/v1/upload/multipleMedia" , createVideoData )
 
 process.on("uncaughtException", (err) => {
   console.log(`Error ${err.message}`);
