@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { getAllVideo, uploadMediaData, getVideoById, updateVideoById , uploadMediaDatas , uploadVideos} = require("../controller/uploadControllers.js");
+const { getAllVideo, getVideoById  } = require("../controller/uploadControllers.js");
 // const multer = require("multer");
 // const path = require("path")
 
@@ -13,7 +13,7 @@ const { getAllVideo, uploadMediaData, getVideoById, updateVideoById , uploadMedi
 
 // const upload = multer({ storage: storage });
 
-router.post("/upload/videoData", uploadMediaData);
+// router.post("/upload/videoData", uploadMediaData);
 
 router.get("/getAllVideo", getAllVideo);
 
