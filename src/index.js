@@ -5,10 +5,6 @@ const dotenv = require("dotenv");
 const uploadRoutes = require("./routes/uploadRoutes");
 const queAnsRoutes = require("./routes/questionAnswerRoutes.js")
 const cors = require("cors");
-const multer = require("multer")
-const path = require("path")
-const {createVideoData,uploadVideo} = require("./controller/uploadControllers.js")
-
 dotenv.config();
 
 app.use(express.json());
@@ -16,17 +12,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static("uploads"));
 app.use(cors());
 
-const storage = multer.diskStorage({
-  destination: "./uploads",
-  filename: function (req, file, cb) {
-      cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
-  },
-});
-const upload = multer({ storage: storage });
-
-app.post("/api/v1/upload/media" , upload.fields([{ name: "video" }]), uploadVideo)
-
-app.post("/api/v1/upload/multipleMedia" , createVideoData )
 
 process.on("uncaughtException", (err) => {
   console.log(`Error ${err.message}`);

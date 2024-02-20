@@ -1,48 +1,39 @@
 const VideoModel = require("../model/videoSchema");
+const multer = require("multer")
+
 
 // CREATING UPLOADMEDIA DATA
 const createVideoData = async (req, res) => {
   try {
+    const data = JSON.parse(JSON.stringify(req.body));
 
-    console.log("Enter")
-    const data = req.body
-    const file = req.files
+    console.log("data" , data)
 
-    console.log(file)
-
-    console.log(data)
-    console.log(Object.keys(data).length == 0)
-
-    if(Object.keys(data).length == 0){
+    if (Object.keys(data).length == 0) {
       return res.status(400).json({
         success: false,
-        message: "video data missing"
-      })
+        message: "video data missing",
+      });
     }
-
-    console.log(data)
 
     const videoData = await VideoModel.create({
       video_id: data.id,
       title: data.title,
-      videoSelectedFile:data.selectedVideo
+      videoSelectedFile: data.selectedVideo,
     });
-
-    console.log("Exist" ,videoData)
 
     return res.status(201).json({
       success: true,
       message: "Video Data Created Successfully",
       videoData,
     });
-
   } catch (error) {
     return res.status(500).send({
       success: false,
-      message: error.message,
-    })
+      message: error,
+    });
   }
-}
+};
 
 // CREATING UPLOADMEDIA DATA
 // const uploadMediaDatas = async (req, res) => {
@@ -74,8 +65,18 @@ const createVideoData = async (req, res) => {
 //   }
 // }
 
+// const storage = multer.diskStorage({
+//   destination: "./uploads",
+//   filename: function (req, file, cb) {
+//       cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
+//   },
+// });
+// const upload = multer({ storage: storage });
+
 // Upload video file
 const uploadVideo = async(req , res , next)=>{
+
+  //  upload.fields([{ name: "video" }])
 
   const videoFilePath = req?.files["video"]?.[0]?.filename;
 

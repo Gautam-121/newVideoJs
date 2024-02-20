@@ -23,7 +23,7 @@ const VideoModel = database.define('video', {
     },
     videoSelectedFile: {
         type: DataTypes.JSONB,
-        allowNull: false
+        allowNull: true,
     }
 });
 
