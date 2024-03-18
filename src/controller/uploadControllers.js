@@ -36,7 +36,6 @@ const createVideoData = async (req, res) => {
 // Upload video file
 const uploadVideo = async(req , res , next)=>{
 
-
   const videoFilePath = req?.files["video"]?.[0]?.filename;
 
   if(!videoFilePath){
