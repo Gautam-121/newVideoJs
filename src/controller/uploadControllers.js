@@ -1,22 +1,23 @@
 const VideoModel = require("../model/videoSchema");
+const multer = require("multer")
+
 
 // CREATING UPLOADMEDIA DATA
 const createVideoData = async (req, res) => {
   try {
-
-    const data = req.body
+    const data = JSON.parse(JSON.stringify(req.body));
 
     if(Object.keys(data).length == 0){
       return res.status(400).json({
         success: false,
-        message: "video data missing"
-      })
+        message: "video data missing",
+      });
     }
 
     const videoData = await VideoModel.create({
       video_id: data.id,
       title: data.title,
-      videoSelectedFile:data.selectedVideo
+      videoSelectedFile: data.selectedVideo,
     });
 
     return res.status(201).json({
@@ -24,47 +25,17 @@ const createVideoData = async (req, res) => {
       message: "Video Data Created Successfully",
       videoData,
     });
-
   } catch (error) {
     return res.status(500).send({
       success: false,
-      message: error.message,
-    })
+      message: error,
+    });
   }
-}
-
-// CREATING UPLOADMEDIA DATA
-// const uploadMediaDatas = async (req, res) => {
-//   try {
-// Creating Video data
-// const createVideoData = async (req, res) => {
-//   try {
-
-//     console.log("Enter")
-//     const videoFilePath = JSON.parse(JSON.stringify(req.files))
-//     const data = JSON.parse(JSON.stringify(req.body))
-
-//     console.log("data" , data)
-//     console.log("videoFilePath" , videoFilePath)
-//     console.log("video", data.video)
-//     console.log("videoSelected", JSON.parse(data.selectedVideo))
-//     console.log("videoSelected Id" , data.id)
-
-//     return res.status(200).json({
-//       status: true,
-//       message: "data Come sussfully",
-//       data:data.selectedVideo
-//     })
-//   } catch (error) {
-//     res.status(500).send({
-//       success: false,
-//       message: error.message,
-//     })
-//   }
-// }
+};
 
 // Upload video file
 const uploadVideo = async(req , res , next)=>{
+
 
   const videoFilePath = req?.files["video"]?.[0]?.filename;
 
