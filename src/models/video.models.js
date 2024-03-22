@@ -1,7 +1,8 @@
 const {  DataTypes } = require('sequelize') 
-const database = require("../config/database.js")
+const {sequelize} = require("../db/index.js")
+const User = require("./user.models.js")
 
-const VideoModel = database.define('video', {
+const Video = sequelize.define('Video', {
     video_id: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -27,4 +28,9 @@ const VideoModel = database.define('video', {
     }
 });
 
-module.exports = VideoModel
+Video.belongsTo(User,{
+    foreignKey:"createdById",
+    as: "createdBy"
+})
+
+module.exports = Video

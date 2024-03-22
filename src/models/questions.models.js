@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
-const database = require("../config/database.js")
+const {sequelize} = require("../db/index.js")
 
-const QuestionAnswerModel = database.define('UserData', {
+const Questions = sequelize.define('Questions', {
     userId: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -14,4 +14,4 @@ const QuestionAnswerModel = database.define('UserData', {
     },
 });
 
-module.exports = QuestionAnswerModel;
+module.exports = Questions;
