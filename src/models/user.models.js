@@ -2,6 +2,7 @@ const { DataTypes } = require("sequelize");
 const { sequelize } = require("../db/index.js");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken")
+const crypto = require("crypto")
 const {PASSWORD_REGEX} = require("../constants.js")
 
 const User = sequelize.define("User",{
@@ -39,6 +40,7 @@ const User = sequelize.define("User",{
           msg: "Password is Required",
         },
         isValidPassword(value) {
+          console.log(value)
             if (!PASSWORD_REGEX.test(value)) {
               throw new Error(
                 "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number"
@@ -47,6 +49,8 @@ const User = sequelize.define("User",{
           }
       },
     },
+    resetPasswordToken: DataTypes.STRING,
+    resetPasswordExpire: DataTypes.DATE,
   },
   {
     hooks: {
@@ -86,6 +90,22 @@ User.prototype.generateAccessToken = async function(){
         }
     )
 }
+
+// Generating Password Reset Token
+User.prototype.getResetPasswordToken = function () {
+  // Generating Token
+  const resetToken = crypto.randomBytes(20).toString("hex");
+
+  // Hashing and adding resetPasswordToken to userSchema
+  this.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  this.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+
+  return resetToken;
+};
 
 module.exports = User;
 
