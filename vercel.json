@@ -6,6 +6,9 @@
             "use": "@vercel/node"
         }
     ],
+    "build": {
+        "postinstall": "npm install pg"
+    },
     "routes": [
         {
             "src": "/(.*)",
