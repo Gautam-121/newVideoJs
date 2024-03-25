@@ -4,10 +4,6 @@
         {
             "src": "index.js",
             "use": "@vercel/node"
-        },
-        {
-            "src": "api/install.js",
-            "use": "@vercel/node"
         }
     ],
     "routes": [
