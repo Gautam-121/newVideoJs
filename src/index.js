@@ -1,5 +1,6 @@
 const app = require("./app.js")
 const {connectDB} = require("./db/index.js");
+const port = process.env.PORT || 8000
 
 process.on("uncaughtException", (err) => {
   console.log(`Error ${err.message}`);
@@ -10,8 +11,8 @@ process.on("uncaughtException", (err) => {
 //Database Connection
 connectDB()
 .then(() => {
-    const server = app.listen(process.env.PORT || 8000, () => {
-        console.log(`⚙️ Server is running at port : ${process.env.PORT}`);
+    const server = app.listen(port, () => {
+        console.log(`⚙️ Server is running at port : ${port}`);
     })
 
     process.on("unhandledRejection" , (err)=>{

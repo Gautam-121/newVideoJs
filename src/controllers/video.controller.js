@@ -14,10 +14,10 @@ const createVideoData = asyncHandler(async (req, res, next) => {
     )
   }
 
+  console.log(data)
+
   const videoData = await Video.create({
-    video_id: data.id,
-    title: data.title,
-    videoSelectedFile: data.selectedVideo,
+    ...data,
     createdById: req.user.id
   });
 
@@ -72,10 +72,16 @@ const getVideoById = asyncHandler(async (req, res, next) => {
     )
   }
 
+  if (!req.params.adminId) {
+    return next(
+      new ErrorHandler("Admin Id missing" , 400)
+    )
+  }
+
   const videoData = await Video.findOne({
     where: { 
       video_id: req.params.id,
-      createdById: req.user.id
+      createdById: req.params.adminId
     }
   })
   

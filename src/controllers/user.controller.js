@@ -4,6 +4,8 @@ const ErrorHandler = require("../utils/errorHandler.js")
 const sendEmail = require("../utils/sendEmail");
 const crypto = require("crypto");
 const { Op } = require('sequelize');
+const {PASSWORD_REGEX} = require("../constants.js")
+
 
 const registerUser = asyncHandler(async(req,res,next)=>{
 
@@ -27,6 +29,15 @@ const registerUser = asyncHandler(async(req,res,next)=>{
         return next(
             new ErrorHandler("User with email already exists",409)
         )
+    }
+
+    if(!PASSWORD_REGEX.test(password)) {
+      return next(
+        new ErrorHandler(
+          "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number and one special character",
+          400
+        )
+      );
     }
 
     const createdUser = await User.create({
@@ -57,6 +68,15 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
             email:email.trim()
         }
     })
+
+    if(!PASSWORD_REGEX.test(password)) {
+        return next(
+          new ErrorHandler(
+            "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number and one special character",
+            400
+          )
+        );
+      }
 
     if(!user){
         return next(
@@ -90,7 +110,6 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
             new ErrorHandler("missing email id",400)
         )
     }
-
     // Find the user by email
     const user = await User.findOne({ 
         where: { 
@@ -102,18 +121,11 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
             new ErrorHandler("User not found", 404)
         );
       }
-  
     // Get ResetPassword Token
-    const resetToken = user.getResetPasswordToken();
-  
+    const otp = user.getResetOtp();
+    console.log("otp" , otp)
     await user.save();
-  
-    const resetPasswordUrl = `${req.protocol}://${req.get(
-      "host"
-    )}/api/v1/users/password/reset/${resetToken}`;
-  
-    const message = `Your password reset token is :- \n\n ${resetPasswordUrl} \n\nIf you have not requested this email then, please ignore it.`;
-  
+    const message = `Your One Time Password is ${otp}`;
     try {
       await sendEmail({
         email: user.email,
@@ -126,69 +138,102 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
         message: `Email sent to ${user.email} successfully`,
       });
     } catch (error) {
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpire = undefined;
+      user.resetOtp = null;
+      user.resetOtpExpire = null;
   
       await user.save();
-  
+
       return next(
         new ErrorHandler(error.message, 500)
         );
     }
   });
 
+const verifyOtp = asyncHandler(async (req, res, next) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return next(new ErrorHandler("Please send Otp and email"));
+  }
+
+  // Find user by reset password OTP and ensure it hasn't expired
+  const user = await User.findOne({
+    where: {
+      email: email,
+      resetOtp: otp,
+      resetOtpExpire: { [Op.gt]: new Date() },
+    },
+  });
+
+  if (!user) {
+    return next(
+        new ErrorHandler("OTP is invalid or has been expired", 400));
+  }
+
+  if (user.resetOtp !== otp) {
+    return res.status(400).json({ error: "Invalid OTP" });
+  }
+
+  user.resetOtp = null;
+  user.resetOtpExpire = null;
+
+  await user.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "OTP verified successfully",
+  });
+});
+
 // Reset Password
 const resetPassword = asyncHandler(async (req, res, next) => {
 
-    if(!req.params.token){
-        return next(
-            new ErrorHandler("Token is missing",400)
-        )
-    }
-    // creating token hash
-    const resetPasswordToken = crypto
-      .createHash("sha256")
-      .update(req.params.token)
-      .digest("hex");
-  
+    const {email , password , confirmPassword} = req.body
+
     // Find user by reset password token and ensure it hasn't expired
     const user = await User.findOne({
         where: {
-          resetPasswordToken,
-          resetPasswordExpire: { [Op.gt]: new Date() }
+            email: email
         }
       });
   
     if (!user) {
       return next(
         new ErrorHandler(
-          "Reset Password Token is invalid or has been expired",
-          400
+          "User not found",
+          404
         )
       );
     }
 
-    if(!req.body.password || !req.body.confirmPassword){
+    if(!password || !confirmPassword){
         return next(
             new ErrorHandler(
                 "Please send Password and confirmPassword", 400
             )
         )
     }
+
+    if(!PASSWORD_REGEX.test(password)) {
+        return next(
+          new ErrorHandler(
+            "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number and one special character",
+            400
+          )
+        );
+      }
   
     // Check if passwords match
-    if (req.body.password !== req.body.confirmPassword) {
-        return next(new Error("Passwords do not match"));
+    if (password !== confirmPassword) {
+        return next(
+            new ErrorHandler("Passwords do not match", 400)
+        );
     }
   
-    user.password = req.body.password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-  
+    user.password = password
     await user.save();
   
     const accessToken = await user.generateAccessToken()
-
     return res.status(200).json({
         success: true,
         data: user,
@@ -200,5 +245,6 @@ module.exports = {
     registerUser , 
     loginUser , 
     forgotPassword,
-    resetPassword
+    resetPassword,
+    verifyOtp
 }

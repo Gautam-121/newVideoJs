@@ -1,9 +1,8 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../db/index.js");
+const Client = require("./client.models.js")
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken")
-const crypto = require("crypto")
-const {PASSWORD_REGEX} = require("../constants.js")
 
 const User = sequelize.define("User",{
     name: {
@@ -39,18 +38,10 @@ const User = sequelize.define("User",{
         notEmpty: {
           msg: "Password is Required",
         },
-        isValidPassword(value) {
-          console.log(value)
-            if (!PASSWORD_REGEX.test(value)) {
-              throw new Error(
-                "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number"
-              );
-            }
-          }
       },
     },
-    resetPasswordToken: DataTypes.STRING,
-    resetPasswordExpire: DataTypes.DATE,
+    resetOtp: DataTypes.STRING,
+    resetOtpExpire: DataTypes.DATE,
   },
   {
     hooks: {
@@ -92,20 +83,30 @@ User.prototype.generateAccessToken = async function(){
 }
 
 // Generating Password Reset Token
-User.prototype.getResetPasswordToken = function () {
-  // Generating Token
-  const resetToken = crypto.randomBytes(20).toString("hex");
+User.prototype.getResetOtp = function () {
 
-  // Hashing and adding resetPasswordToken to userSchema
-  this.resetPasswordToken = crypto
-    .createHash("sha256")
-    .update(resetToken)
-    .digest("hex");
+  // Define the possible characters for the OTP
+  const chars = '0123456789';
+  // Define the length of the OTP
+  const len = 6;
+  let otp = '';
+  // Generate the OTP
+  for (let i = 0; i < len; i++) {
+    otp += chars[Math.floor(Math.random() * chars.length)];
+  }
 
-  this.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+  this.resetOtp = otp
+  this.resetOtpExpire = Date.now() + 15 * 60 * 1000;
 
-  return resetToken;
+  return otp;
 };
+
+
+User.hasMany(Client,{
+  foreignKey: "feedback",
+  as: "feedbackResponse"
+})
+
 
 module.exports = User;
 
