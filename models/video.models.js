@@ -24,7 +24,7 @@ const Video = sequelize.define('Video', {
     },
     videoSelectedFile: {
         type: DataTypes.JSONB,
-        allowNull: true,
+        allowNull: false,
     }
 });
 
@@ -32,5 +32,7 @@ Video.belongsTo(User,{
     foreignKey:"createdById",
     as: "createdBy"
 })
+
+
 
 module.exports = Video

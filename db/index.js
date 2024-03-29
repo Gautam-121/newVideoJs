@@ -3,7 +3,7 @@ require("dotenv").config()
 
 
 const sequelize = new Sequelize(process.env.DATABASE_URI,{
-  dialectModule: require('pg')
+  dialectModule: require('pg'),
 });
 
 const connectDB = async () => {

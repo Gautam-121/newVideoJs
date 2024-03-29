@@ -2,7 +2,6 @@ const User = require("../models/user.models.js")
 const asyncHandler = require("../utils/asyncHandler.js")
 const ErrorHandler = require("../utils/errorHandler.js")
 const sendEmail = require("../utils/sendEmail");
-const crypto = require("crypto");
 const { Op } = require('sequelize');
 const {PASSWORD_REGEX} = require("../constants.js")
 
@@ -40,11 +39,26 @@ const registerUser = asyncHandler(async(req,res,next)=>{
       );
     }
 
-    const createdUser = await User.create({
+    const user = await User.create({
         name,
         email,
         password
     })
+
+    const createdUser = await User.findByPk(user.id,{
+      attributes:{
+        exclude: ["resetOtp","resetOtpExpire"]
+      }
+    })
+
+    if(!createdUser){
+      return next(
+        new ErrorHandler(
+          "Something went wrong while creating the User registration",
+          500
+        )
+      )
+    }
 
     return res.status(201).json({
         success: true,
@@ -65,7 +79,10 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
 
     const user = await User.findOne({
         where:{
-            email:email.trim()
+            email:email.trim(),
+        },
+        attributes: {
+          exclude: ['resetOtp', 'resetOtpExpire']
         }
     })
 
@@ -150,6 +167,7 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
   });
 
 const verifyOtp = asyncHandler(async (req, res, next) => {
+
   const { email, otp } = req.body;
 
   if (!email || !otp) {
@@ -194,6 +212,9 @@ const resetPassword = asyncHandler(async (req, res, next) => {
     const user = await User.findOne({
         where: {
             email: email
+        },
+        attributes: {
+          exclude: ['resetOtp', 'resetOtpExpire']
         }
       });
   
