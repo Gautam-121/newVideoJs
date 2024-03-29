@@ -46,15 +46,7 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 // Upload video file
 const uploadVideo = asyncHandler(async(req , res , next)=>{
 
-  const videoFilePath = req?.files?.["video"]?.[0]?.path;
-
-  fs.unlinkSync(videoFilePath)
-
-  console.log(req?.files?.["video"]?.[0])
-
-  return res.status(200).json({
-    success: true
-  })
+  const videoFilePath = req?.files?.["video"]?.[0]?.filename;
 
   if(!videoFilePath){
     return next(
@@ -84,7 +76,6 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
     videoResult
   })
 })
-
 
 // get specific Video by Id
 const getVideoById = asyncHandler(async (req, res, next) => {
@@ -116,27 +107,40 @@ const getVideoById = asyncHandler(async (req, res, next) => {
 })
 
 // update UploadMultiMedia Data
-// const updateVideoData = asyncHandler( async (req, res, next)=>{
-//   // take id and check video exist or not
-//   // take parameter frm user 
-//   // validate the field videoSelectedFile , videoData , title
-//   // update the data 
-//   // verify successfully updated or not
-//   // successfully updated send respond to user
+const updateVideoData = asyncHandler( async (req, res, next)=>{
+  // take id and check video exist or not
+  // take parameter frm user 
+  // validate the field videoSelectedFile , videoData , title
+  // update the data 
+  // verify successfully updated or not
+  // successfully updated send respond to user
 
-//   const video = await Video.findByPk(req.params.id)
+  const video = await Video.findOne({
+    where:{
+      video_id: req.params.id,
+      createdById: req.user.id
+    }
+  })
 
-//   if(!video){
-//     return next(
-//       new ErrorHandler("Video not found", 400)
-//     )
-//   }
+  if(!video){
+    return next(
+      new ErrorHandler("Video not found", 400)
+    )
+  }
 
-//   const data = JSON.parse(JSON.stringify(req.body))
+  const data = JSON.parse(JSON.stringify(req.body))
 
-//   const videoUpdate = await Video.update()
+  const filterVideoFile = video.videoFileUrl.filter(videoStr => !(data.videoFileUrl.includes(videoStr)))
 
-// })
+  if(filterVideoFile.length>0){
+    filterVideoFile.forEach(videoPath => {
+      fs.unlinkSync(videoPath)
+    })
+  }
+
+  const videoUpdate = await Video.update()
+
+})
 
 
 

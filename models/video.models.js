@@ -22,6 +22,18 @@ const Video = sequelize.define('Video', {
         },
         allowNull: false,
     },
+    // videoFileUrl:{
+    //     type: DataTypes.ARRAY(DataTypes.STRING)
+    // },
+    // videoData:{
+    //     type: DataTypes.JSON,
+    //     allowNull: false,
+    //     validate:{
+    //      notEmpty:{
+    //        msg: "VideoData is Required"
+    //      }
+    //     }
+    // },
     videoSelectedFile: {
         type: DataTypes.JSONB,
         allowNull: false,
