@@ -217,7 +217,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   if(video?.videoFileUrl.length>0){
     video?.videoFileUrl.forEach(videoPath => {
       console.log(videoPath)
-      fs.unlinkSync(`public\\temp\\${videoPath}`)
+      fs.unlinkSync(`public/temp/${videoPath}`)
     })
   }
 
