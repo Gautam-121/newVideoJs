@@ -48,6 +48,8 @@ const uploadVideo = asyncHandler(async(req , res , next)=>{
 
   const videoFilePath = req?.files?.["video"]?.[0]?.filename;
 
+  console.log(req?.files?.["video"]?.[0])
+
   if(!videoFilePath){
     return next(
       new ErrorHandler("Missing Video File , Provide video file", 400)
