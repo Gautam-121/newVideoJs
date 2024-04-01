@@ -134,12 +134,95 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
   if(filterVideoFile.length>0){
     filterVideoFile.forEach(videoPath => {
-      fs.unlinkSync(videoPath)
+      fs.unlinkSync(`public\\temp\\${videoPath}`)
     })
   }
 
-  const videoUpdate = await Video.update()
+  const [rowsUpdated, [updatedVideoData]] = await Video.update(
+    data,
+    {
+      where:{
+        video_id: req.params.id,
+        createdById: req.user.id
+      },
+      returning: true
+    }
+  )
 
+  if(rowsUpdated == 0){
+    return next(
+      new ErrorHandler(
+        "Something went wrong while updating the videoData",
+        500
+      )
+    )
+  }
+
+  return res.status(200).json({
+    success: true,
+    vidoData: updatedVideoData,
+    message: "update the videoData successfully"
+  })
+
+})
+
+// delete MultiMedia Data
+const deleteVideoData = asyncHandler(async (req,res,next)=>{
+
+  if(!req.params.id){
+    return next(
+      new ErrorHandler(
+        "Missing Video id",
+        400
+      )
+    )
+  }
+
+  const video = await Video.findOne({
+    where:{
+      video_id: req.params.id,
+      createdById: req.user.id
+    }
+  })
+
+  if(!video){
+    return next(
+      new ErrorHandler(
+        "VideoData not found",
+        404
+      )
+    )
+  }
+
+  const deleteVideo =await Video.destroy({
+    where: {
+      video_id: req.params.id,
+      createdById: req.user.id
+    }
+  });
+
+  if(!deleteVideo){
+    return next(
+      new ErrorHandler(
+        "Something went wrong while deleting the video",
+        500
+      )
+    )
+  }
+
+  console.log(video?.videoFileUrl)
+  // unlink all files from local
+  if(video?.videoFileUrl.length>0){
+    video?.videoFileUrl.forEach(videoPath => {
+      console.log(videoPath)
+      fs.unlinkSync(`public\\temp\\${videoPath}`)
+    })
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Video data deleted successufully"
+  })
 })
 
 
@@ -148,5 +231,7 @@ module.exports = {
   uploadVideo, 
   createVideoData , 
   getAllVideo, 
-  getVideoById 
+  getVideoById,
+  updateVideoData,
+  deleteVideoData
 }
