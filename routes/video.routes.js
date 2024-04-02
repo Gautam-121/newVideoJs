@@ -20,7 +20,7 @@ router.get("/getVideoById/:id" ,  getVideoById)
 
 router.post("/upload/media", verifyJWt ,  upload.fields([{ name: "video" }]), uploadVideo);
 
-router.put("/updateVideo/:id", verifyJWt , updateVideoData )
+router.put("/updateVideo/:id", verifyJWt , upload.any() , updateVideoData )
 
 router.delete("/deleteVideo/:id", verifyJWt , deleteVideoData )
 
