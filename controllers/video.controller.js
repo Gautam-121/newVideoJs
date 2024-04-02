@@ -153,6 +153,8 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
   const data = JSON.parse(JSON.stringify(req.body))
 
+  console.log(data)
+
   let filterVideoFile = []
 
   // unlink all files from local
