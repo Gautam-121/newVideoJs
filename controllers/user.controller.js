@@ -4,6 +4,11 @@ const ErrorHandler = require("../utils/errorHandler.js")
 const sendEmail = require("../utils/sendEmail");
 const { Op } = require('sequelize');
 const {PASSWORD_REGEX} = require("../constants.js")
+const {
+  isValiLengthName,
+  isValidEmail,
+  isValidPassword
+} = require("../utils/validator.js")
 
 
 const registerUser = asyncHandler(async(req,res,next)=>{
@@ -14,29 +19,53 @@ const registerUser = asyncHandler(async(req,res,next)=>{
         [name,email,password].some((field) => field?.trim() === "")
     ) {
         return next(
-            new ErrorHandler("All fields are required", 400)
+            new ErrorHandler(
+              "All fields are required", 
+              400
+            )
         )
     }
 
-    const existedUser = await User.findOne({
-        where:{
-            email:email
-        }
-    })
-
-    if(existedUser){
-        return next(
-            new ErrorHandler("User with email already exists",409)
+    if(!isValidEmail(email)){
+      return next(
+        new ErrorHandler(
+          "Invalid Email Address",
+          400
         )
+      )
     }
 
-    if(!PASSWORD_REGEX.test(password)) {
+    if(!isValidPassword(password)){
       return next(
         new ErrorHandler(
           "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number and one special character",
           400
         )
-      );
+      )
+    }
+
+    if(!isValiLengthName(name)){
+      return next(
+        new ErrorHandler(
+          "Name should be greater than 4 character",
+          400
+        )
+      )
+    }
+
+    const existedUser = await User.findOne({
+        where:{
+            email:email.trim()
+        }
+    })
+
+    if(existedUser){
+        return next(
+            new ErrorHandler(
+              "User with email already exists",
+              409
+            )
+        )
     }
 
     const user = await User.create({
@@ -73,8 +102,20 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
 
     if(!(email && password)){
         return next(
-            new ErrorHandler("Please enter email and password", 400)
+            new ErrorHandler(
+              "Please enter email and password", 
+              400
+            )
         )
+    }
+
+    if(!isValidEmail(email)){
+      return next(
+        new ErrorHandler(
+          "Invalid Email Address",
+          400
+        )
+      )
     }
 
     const user = await User.findOne({
@@ -86,18 +127,12 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
         }
     })
 
-    if(!PASSWORD_REGEX.test(password)) {
-        return next(
-          new ErrorHandler(
-            "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number and one special character",
-            400
-          )
-        );
-      }
-
     if(!user){
         return next(
-            new ErrorHandler("User does not exist",404)
+            new ErrorHandler(
+              "User does not exist",
+              404
+            )
         )
     }
 
@@ -105,7 +140,10 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
 
     if(!isPasswordValid){
         return next(
-            new ErrorHandler("Invalid user credentials",401)
+            new ErrorHandler(
+              "Invalid user credentials",
+              401
+            )
         )
     }
 
@@ -122,28 +160,50 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
 // Forgot Password
 const forgotPassword = asyncHandler(async (req, res, next) => {
 
-    if(!req.body.email){
+  const {email} = req.body
+ 
+    if(!email){
         return next(
-            new ErrorHandler("missing email id",400)
+            new ErrorHandler(
+              "missing email id",
+              400
+            )
         )
     }
+
+    if(!isValidEmail(email)){
+      return next(
+        new ErrorHandler(
+          "Invalid email Address",
+          400
+        )
+      )
+    }
+    
     // Find the user by email
-    const user = await User.findOne({ 
-        where: { 
-            email : req.body.email
-        } });
+    const user = await User.findOne({
+      where: {
+        email: email.trim(),
+      },
+    });
   
     if (!user) {
         return next(
-            new ErrorHandler("User not found", 404)
+            new ErrorHandler(
+              "User not found", 
+              404
+            )
         );
-      }
+    }
+
     // Get ResetPassword Token
     const otp = user.getResetOtp();
-    console.log("otp" , otp)
+
     await user.save();
     const message = `Your One Time Password is ${otp}`;
+
     try {
+
       await sendEmail({
         email: user.email,
         subject: `Password Recovery`,
@@ -154,15 +214,20 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
         success: true,
         message: `Email sent to ${user.email} successfully`,
       });
+
     } catch (error) {
+
       user.resetOtp = null;
       user.resetOtpExpire = null;
   
       await user.save();
 
       return next(
-        new ErrorHandler(error.message, 500)
-        );
+        new ErrorHandler(
+          error.message, 
+          500
+        )
+      );
     }
   });
 
@@ -171,13 +236,18 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
   const { email, otp } = req.body;
 
   if (!email || !otp) {
-    return next(new ErrorHandler("Please send Otp and email"));
+    return next(
+      new ErrorHandler(
+        "Please send Otp and email",
+        400
+      )
+    );
   }
 
   // Find user by reset password OTP and ensure it hasn't expired
   const user = await User.findOne({
     where: {
-      email: email,
+      email: email.trim(),
       resetOtp: otp,
       resetOtpExpire: { [Op.gt]: new Date() },
     },
@@ -185,11 +255,20 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
 
   if (!user) {
     return next(
-        new ErrorHandler("OTP is invalid or has been expired", 400));
+        new ErrorHandler(
+          "OTP is invalid or has been expired", 
+          401
+        )
+    );
   }
 
   if (user.resetOtp !== otp) {
-    return res.status(400).json({ error: "Invalid OTP" });
+    return next(
+      new ErrorHandler(
+        "Invalid Otp",
+        401
+      )
+    )
   }
 
   user.resetOtp = null;
@@ -206,12 +285,12 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
 // Reset Password
 const resetPassword = asyncHandler(async (req, res, next) => {
 
-    const {email , password , confirmPassword} = req.body
+    const {email , password } = req.body
 
     // Find user by reset password token and ensure it hasn't expired
     const user = await User.findOne({
         where: {
-            email: email
+            email: email.trim()
         },
         attributes: {
           exclude: ['resetOtp', 'resetOtpExpire']
@@ -227,10 +306,11 @@ const resetPassword = asyncHandler(async (req, res, next) => {
       );
     }
 
-    if(!password || !confirmPassword){
+    if(!password){
         return next(
             new ErrorHandler(
-                "Please send Password and confirmPassword", 400
+                "Password is  requird", 
+                400
             )
         )
     }
@@ -244,17 +324,11 @@ const resetPassword = asyncHandler(async (req, res, next) => {
         );
       }
   
-    // Check if passwords match
-    if (password !== confirmPassword) {
-        return next(
-            new ErrorHandler("Passwords do not match", 400)
-        );
-    }
-  
+    const accessToken = await user.generateAccessToken()
+
     user.password = password
     await user.save();
-  
-    const accessToken = await user.generateAccessToken()
+
     return res.status(200).json({
         success: true,
         data: user,

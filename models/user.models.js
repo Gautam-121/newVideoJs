@@ -10,8 +10,8 @@ const User = sequelize.define("User",{
       allowNull: false,
       validate: {
         len: {
-          args: [4, 30],
-          msg: "Name should have more than 4 characters and less than 30",
+          args: [4],
+          msg: "Name should have more than 4 character",
         },
         notEmpty: {
           msg: "Name is Required",

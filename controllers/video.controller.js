@@ -9,9 +9,12 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 
   const data = JSON.parse(JSON.stringify(req.body));
 
-  if(!data.video_id || !data.title || !data.videoSelectedFile){
+  if(!data.video_id || !data.title || !data.videoSelectedFile || !data.videoData || !data.videoFileUrl){
     return next(
-      new ErrorHandler("All field are required",400)
+      new ErrorHandler(
+        "All field are required",
+        400
+      )
     )
   }
 
@@ -19,7 +22,10 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 
   if(isVideoIdExist){
     return next(
-      new ErrorHandler("Video_id already exist", 409)
+      new ErrorHandler(
+        "Video_id already exist",
+        409
+      )
     )
   }
 
@@ -32,7 +38,10 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 
   if(!videoData){
     return next(
-      new ErrorHandler("Something went wrong while creating the data", 500)
+      new ErrorHandler(
+        "Something went wrong while creating the data", 
+        500
+      )
     )
   }
 
@@ -48,11 +57,12 @@ const uploadVideo = asyncHandler(async(req , res , next)=>{
 
   const videoFilePath = req?.files?.["video"]?.[0]?.filename;
 
-  console.log(req?.files?.["video"]?.[0])
-
   if(!videoFilePath){
     return next(
-      new ErrorHandler("Missing Video File , Provide video file", 400)
+      new ErrorHandler(
+        "Missing Video File , Provide video file",
+         400
+      )
     )
   }
 
@@ -73,6 +83,7 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
       }
     }
   );
+
   return res.status(200).json({
     success: true,
     videoResult
@@ -86,7 +97,10 @@ const getVideoById = asyncHandler(async (req, res, next) => {
   
   if(!id) {
     return next(
-      new ErrorHandler("Video_id is Missing" , 400)
+      new ErrorHandler(
+        "Video_id is Missing" ,
+         400
+      )
     )
   }
 
@@ -98,9 +112,13 @@ const getVideoById = asyncHandler(async (req, res, next) => {
   
   if (!videoData) {
     return next(
-      new ErrorHandler("Video data not Found",404)
+      new ErrorHandler(
+        "Video data not Found",
+        404
+      )
     )
   }
+
   return res.status(200).json({
     success: true,
     message: "Data Send Successfully",
@@ -126,17 +144,27 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
   if(!video){
     return next(
-      new ErrorHandler("Video not found", 400)
+      new ErrorHandler(
+        "Video not found",
+         404
+      )
     )
   }
 
   const data = JSON.parse(JSON.stringify(req.body))
 
-  const filterVideoFile = video.videoFileUrl.filter(videoStr => !(data.videoFileUrl.includes(videoStr)))
+  let filterVideoFile = []
+
+  // unlink all files from local
+  if (video && video.videoFileUrl && video?.videoFileUrl.length > 0) {
+    filterVideoFile = video?.videoFileUrl.filter(
+      (videoStr) => !data.videoFileUrl.includes(videoStr)
+    );
+  }
 
   if(filterVideoFile.length>0){
     filterVideoFile.forEach(videoPath => {
-      fs.unlinkSync(`public\\temp\\${videoPath}`)
+      fs.unlinkSync(`public/temp/${videoPath}`)
     })
   }
 
@@ -212,11 +240,9 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
     )
   }
 
-  console.log(video?.videoFileUrl)
   // unlink all files from local
-  if(video?.videoFileUrl.length>0){
+  if(video && video.videoFileUrl && video?.videoFileUrl.length>0){
     video?.videoFileUrl.forEach(videoPath => {
-      console.log(videoPath)
       fs.unlinkSync(`public/temp/${videoPath}`)
     })
   }
