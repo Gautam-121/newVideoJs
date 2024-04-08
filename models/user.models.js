@@ -1,8 +1,8 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../db/index.js");
-const Client = require("./client.models.js")
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken")
+const crypto = require("crypto")
 
 const User = sequelize.define("User",{
     name: {
@@ -101,11 +101,20 @@ User.prototype.getResetOtp = function () {
   return otp;
 };
 
+User.prototype.generateResetPasswordToken = function (){
 
-User.hasMany(Client,{
-  foreignKey: "feedback",
-  as: "feedbackResponse"
-})
+  const resetToken = crypto.randomBytes(20).toString("hex")
+
+  // hash the resetPassword and store in database
+  this.resetPasswordToken = crypto
+  .createHash("sha256")
+  .update(resetToken)
+  .digest("hex")
+
+  this.resetPasswordExpire = Date.now() + 15 * 60 * 1000
+
+  return resetToken
+}
 
 
 module.exports = User;

@@ -2,6 +2,7 @@ const Video = require("../models/video.models");
 const asyncHandler = require("../utils/asyncHandler");
 const ErrorHandler = require("../utils/errorHandler");
 const fs = require("fs")
+const {deleteObjectsFromS3,uploadFileToS3} = require("../utils/aws.js")
 
 
 // CREATING UPLOADMEDIA DATA
@@ -56,6 +57,33 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 const uploadVideo = asyncHandler(async(req , res , next)=>{
 
   const videoFilePath = req?.files?.["video"]?.[0]?.filename;
+
+  // const videoLocalFilePath = req?.files?.["video"]?.[0]?.path
+  // if(!videoLocalFilePath){
+  //   return next(
+  //     new ErrorHandler(
+  //       "Missing Video File , Provide video file",
+  //        400
+  //     )
+  //   )
+  // }
+
+  // const uploadFileOnAwsS3 = await uploadFileToS3(videoLocalFilePath)
+
+  // if(!uploadFileOnAwsS3){
+  //   return next(
+  //     new ErrorHandler(
+  //       "Something went wrong while uploding file on Aws s3 cloud",
+  //        500
+  //     )
+  //   )
+  // }
+
+  // return res.status(201).json({
+  //   success: true,
+  //   message: "Video Uploaded Successfully",
+  //   videoUrl: uploadFileOnAwsS3
+  // })
 
   if(!videoFilePath){
     return next(
@@ -156,7 +184,14 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
   let filterVideoFile = []
 
   // unlink all files from local
-  if (video && video.videoFileUrl && video?.videoFileUrl.length > 0) {
+  if (
+    video &&
+    video.videoFileUrl &&
+    video?.videoFileUrl.length > 0 &&
+    data?.videoFileUrl &&
+    Array.isArray(data?.videoFileUrl) && 
+    data?.videoFileUrl.length > 0
+  ) {
     filterVideoFile = video?.videoFileUrl.filter(
       (videoStr) => !data.videoFileUrl.includes(videoStr)
     );
@@ -167,6 +202,19 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
       fs.unlinkSync(`public/temp/${videoPath}`)
     })
   }
+
+  // if(filterVideoFile.length>0){
+  //   const deleteFileOnAwsS3 = await deleteObjectsFromS3(filterVideoFile)
+
+  //   if(!deleteFileOnAwsS3){
+  //     return next(
+  //       new ErrorHandler(
+  //         "Something went wrong while updating video file from Aws s3 cloud",
+  //         500
+  //       )
+  //     )
+  //   }
+  // }
 
   const [rowsUpdated, [updatedVideoData]] = await Video.update(
     data,
@@ -198,59 +246,63 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
 // delete MultiMedia Data
 const deleteVideoData = asyncHandler(async (req,res,next)=>{
-
-  if(!req.params.id){
-    return next(
-      new ErrorHandler(
-        "Missing Video id",
-        400
-      )
-    )
+  if (!req.params.id) {
+    return next(new ErrorHandler("Missing Video id", 400));
   }
 
   const video = await Video.findOne({
-    where:{
-      video_id: req.params.id,
-      createdById: req.user.id
-    }
-  })
-
-  if(!video){
-    return next(
-      new ErrorHandler(
-        "VideoData not found",
-        404
-      )
-    )
-  }
-
-  const deleteVideo =await Video.destroy({
     where: {
       video_id: req.params.id,
-      createdById: req.user.id
-    }
+      createdById: req.user.id,
+    },
   });
 
-  if(!deleteVideo){
+  if (!video) {
+    return next(new ErrorHandler("VideoData not found", 404));
+  }
+
+  // unlink all files from cloudinary
+  // if(video && video.videoFileUrl && video?.videoFileUrl.length>0){
+  //   const deleteFileOnAwsS3 = await deleteObjectsFromS3(video?.videoFileUrl)
+
+  //   if(!deleteFileOnAwsS3){
+  //     return next(
+  //       new ErrorHandler(
+  //         "Somwthing went wrong while deleting video file from aws s3 cloud"
+  //       )
+  //     )
+  //   }
+  // }
+
+  const deleteVideo = await Video.destroy({
+    where: {
+      video_id: req.params.id,
+      createdById: req.user.id,
+    },
+  });
+
+  if (!deleteVideo) {
     return next(
-      new ErrorHandler(
-        "Something went wrong while deleting the video",
-        500
-      )
-    )
+      new ErrorHandler("Something went wrong while deleting the video", 500)
+    );
   }
 
   // unlink all files from local
-  if(video && video.videoFileUrl && video?.videoFileUrl.length>0){
-    video?.videoFileUrl.forEach(videoPath => {
-      fs.unlinkSync(`public/temp/${videoPath}`)
-    })
+  if (
+    video &&
+    video.videoFileUrl &&
+    Array.isArray(video?.videoFileUrl) &&
+    video?.videoFileUrl?.length > 0
+  ) {
+    video?.videoFileUrl.forEach((videoPath) => {
+      fs.unlinkSync(`public/temp/${videoPath}`);
+    });
   }
 
   return res.status(200).json({
     success: true,
-    message: "Video data deleted successufully"
-  })
+    message: "Video data deleted successufully",
+  });
 })
 
 

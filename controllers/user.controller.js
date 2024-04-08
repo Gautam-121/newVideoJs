@@ -9,7 +9,7 @@ const {
   isValidEmail,
   isValidPassword
 } = require("../utils/validator.js")
-
+const crypto = require("crypto")
 
 const registerUser = asyncHandler(async(req,res,next)=>{
 
@@ -155,6 +155,126 @@ const loginUser =  asyncHandler(async(req,res,next)=>{
         data: user,
         accessToken: accessToken
     })
+})
+
+// Forgot Password Token
+const forgotPasswordToken = asyncHandler(async (req, res, next) => {
+
+  const {email} = req.body
+ 
+    if(!email){
+        return next(
+            new ErrorHandler(
+              "missing email id",
+              400
+            )
+        )
+    }
+
+    if(!isValidEmail(email)){
+      return next(
+        new ErrorHandler(
+          "Invalid email Address",
+          400
+        )
+      )
+    }
+    
+    // Find the user by email
+    const user = await User.findOne({
+      where: {
+        email: email.trim(),
+      },
+    });
+  
+    if (!user) {
+        return next(
+            new ErrorHandler(
+              "User not found", 
+              404
+            )
+        );
+    }
+
+    // Get ResetPassword Token
+    const resetToken = user.generateResetPasswordToken();
+    await user.save();
+
+    const resetPasswordUrl = `${req.protocol}://${req.get(
+    "host")}/api/v1/user/password/reset/${resetToken}`;
+
+  const message = `Your password reset token is :- \n\n ${resetPasswordUrl} \n\nIf you have not requested this email then, please ignore it.`;
+
+    try {
+
+      await sendEmail({
+        email: user.email,
+        subject: `Password Recovery`,
+        message,
+      });
+  
+      res.status(200).json({
+        success: true,
+        message: `Email sent to ${user.email} successfully`,
+      });
+
+    } catch (error) {
+
+      user.resetPasswordToken = null;
+      user.resetPasswordExpire = null;
+  
+      await user.save();
+
+      return next(
+        new ErrorHandler(
+          error.message, 
+          500
+        )
+      );
+    }
+});
+
+const restPasswordTokenVerify = asyncHandler(async(req,res,next)=>{
+
+  const { token } = req.params
+
+  if(!token){
+    return next(
+      new ErrorHandler(
+        "Token is missing",
+        400
+      )
+    )
+  }
+
+  const incomingResetToken = crypto
+  .createHash("sha256")
+  .update(token)
+  .digest("hex")
+
+  const user = await User.findOne({
+    where:{
+      resetPasswordToken: incomingResetToken,
+      resetPasswordExpire: {
+        [Op.gt] : Date.now()
+      }
+    }
+  })
+
+  if(!user){
+    return next(
+      new ErrorHandler(
+        "Reset Password Token is invalid or has been expired",
+        400
+      )
+    )
+  }
+
+  user.resetPasswordToken = null
+  user.resetPasswordExpire = null
+  await user.save()
+
+  return res.redirect(301, 'https://www.google.com');
 })
 
 // Forgot Password
@@ -334,7 +454,7 @@ const resetPassword = asyncHandler(async (req, res, next) => {
         data: user,
         accessToken: accessToken
     })
-  });
+});
 
 module.exports = {
     registerUser , 

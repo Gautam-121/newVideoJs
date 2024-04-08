@@ -1,6 +1,7 @@
 const {  DataTypes } = require('sequelize') 
 const {sequelize} = require("../db/index.js")
-const User = require("./user.models.js")
+const User = require("./user.models.js");
+const Feedback = require('./feedback.models.js');
 
 const Video = sequelize.define('Video', {
     video_id: {
@@ -43,7 +44,14 @@ const Video = sequelize.define('Video', {
 
 Video.belongsTo(User,{
     foreignKey:"createdById",
-    as: "createdBy"
+    as: "createdByRes"
 })
 
+Video.hasMany(Feedback, { // Assuming each video can have multiple feedbacks
+    foreignKey: 'videoId',
+    as: "feedback"
+});
+
 module.exports = Video
+
+
