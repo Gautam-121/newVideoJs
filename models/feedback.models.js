@@ -1,6 +1,6 @@
 const {  DataTypes } = require('sequelize') 
 const { sequelize } = require("../db/index.js")
-const Client = require("./client.models.JS")
+const Client = require("./client.models.js")
 
 const Feedback = sequelize.define('Feedback', {
   isStartServey:{
