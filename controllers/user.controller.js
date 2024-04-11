@@ -468,6 +468,15 @@ const changePassword = asyncHandler( async(req,res,next)=>{
     )
   }
 
+  if(!isValidPassword(password)){
+    return next(
+      new ErrorHandler(
+        "Password must contain at least 8 characters, including at least one uppercase letter, one lowercase letter, and one number and one special character",
+        400
+      )
+    )
+  }
+  
   const user = await User.findByPk(req.user.id)
 
   if(!user){
