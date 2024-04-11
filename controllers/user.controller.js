@@ -456,10 +456,54 @@ const resetPassword = asyncHandler(async (req, res, next) => {
     })
 });
 
+const changePassword = asyncHandler( async(req,res,next)=>{
+
+  const { oldPassword , password } = req.body
+
+  if(!oldPassword || !password){
+    return next(
+      new ErrorHandler(
+        "OldPassword and Password is requird"
+      )
+    )
+  }
+
+  const user = await User.findByPk(req.user.id)
+
+  if(!user){
+    return next(
+      new ErrorHandler(
+        "User not found",
+        404
+      )
+    )
+  }
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+  if(!isPasswordCorrect){
+    return next(
+      new ErrorHandler(
+        "Invalid old password",
+        400
+      )
+    )
+  }
+
+  user.password = password
+  await user.save({validate: false})
+
+  return res.status(200).json({
+    success: true,
+    message: "Password change successfully"
+  })
+})
+
 module.exports = {
     registerUser , 
     loginUser , 
     forgotPassword,
     resetPassword,
-    verifyOtp
+    verifyOtp,
+    changePassword
 }
