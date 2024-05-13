@@ -3,8 +3,10 @@ const Feedback = require("../models/feedback.models");
 const asyncHandler = require("../utils/asyncHandler");
 const ErrorHandler = require("../utils/errorHandler");
 const Video = require("../models/video.models.js")
+const Analytic = require("../models/analytic.models.js")
 const sendEmail = require("../utils/sendEmail.js")
-const { Op } = require('sequelize');
+const { Op, where } = require('sequelize');
+const { isValidEmail } = require("../utils/validator.js");
 
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
@@ -15,6 +17,15 @@ const registerLogin = asyncHandler(async(req,res,next)=>{
         return next(
             new ErrorHandler(
                 "email is required"
+            )
+        )
+    }
+
+    if(!isValidEmail(email)){
+        return next(
+            new ErrorHandler(
+                "Invalid email id",
+                400
             )
         )
     }
@@ -33,8 +44,6 @@ const registerLogin = asyncHandler(async(req,res,next)=>{
         await existingClient.save({validate: false})
 
         try {
-
-            console.log(existingClient)
 
             await sendEmail({
                 email: existingClient.email,
@@ -124,6 +133,15 @@ const verifyOtp = asyncHandler(async(req,res,next)=>{
         )
     }
 
+    if(!isValidEmail(email)){
+        return next(
+            new ErrorHandler(
+                "Invalid email id",
+                400
+            )
+        )
+    }
+
     const user = await Client.findOne({
         where:{
             email: email.trim(),
@@ -163,47 +181,236 @@ const verifyOtp = asyncHandler(async(req,res,next)=>{
  
 })
 
-const storeFeedback = asyncHandler(async(req,res,next)=>{
+const socialLogin = asyncHandler(async(req,res,next)=>{
 
-    const {clientId , videoId , response} = req.body
+    const { email } = req.body
 
-    const feedbackRes = await Feedback.create({
-        clientId: clientId,
-        videoId: videoId,
-        response: response
+    if(!email){
+        return next(
+            new ErrorHandler(
+                "Email is required",
+                 400
+            )
+        )
+    }
+
+    if(!isValidEmail(email)){
+        return next(
+            new ErrorHandler(
+                "Invalid email id",
+                400
+            )
+        )
+    }
+
+    const existingClient = await Client.findOne({
+        where:{
+            email: email.trim()
+        }
     })
+
+    if(existingClient){
+        return res.status(200).json({
+            success: true,
+            message: "Authentication successfull",
+            user: existingClient
+        })
+    }
+
+    const user = await Client.create({
+        email
+    })
+
+    if(!user){
+        return next(
+            new ErrorHandler(
+                "Something went wrong while registering the client",
+                500
+            )
+        )
+    }
 
     return res.status(200).json({
         success: true,
-        feedbackRes : feedbackRes
+        message: "Authentication successfull",
+        user
     })
 })
 
-const getFeedback = asyncHandler(async(req,res,next)=>{
+const storeFeedback = asyncHandler(async(req,res,next)=>{
+
+  const { clientId, videoId, response, isStartServey, isEndSurvey } = req.body;
+
+  if (!clientId || !videoId || !response || response.length == 0) {
+    return next(
+        new ErrorHandler(
+            "Provide all fields", 
+            400
+        )
+    );
+  }
+
+  const isResponseAlreadyExist = await Feedback.findOne({
+    where:{
+        clientId: clientId
+    }
+  })
+
+  if(isResponseAlreadyExist){
+    return next(
+        new ErrorHandler(
+            "Response i have alredy stored",
+            409
+        )
+    )
+  }
+
+  const analyticResponse = await Analytic.findOne({
+    where: {
+      videoId: videoId,
+    },
+  });
+
+  console.log("analyticResponse" , analyticResponse)
+
+  if (analyticResponse) {
+    response.forEach((res) => {
+      const questionToUpdate = analyticResponse.analyticData.find(
+        (item) => item.question === res.question
+      );
+
+      console.log("questionToUpdate 267" , questionToUpdate)
+
+      if (questionToUpdate) {
+          if (res.skip) {
+            questionToUpdate["noOfSkip"]++;
+          } else {
+            res.ans.forEach((answer) => {
+                console.log("answer 274" , answer)
+              if (questionToUpdate.responses.hasOwnProperty(answer)) {
+                questionToUpdate.responses[answer]++;
+              }
+            });
+          }
+      }
+    });
+
+    await Analytic.update(
+        { 
+            totalResponse: analyticResponse.totalResponse + 1,
+            analyticData: analyticResponse.analyticData
+        },
+        {
+            where:{
+                id : analyticResponse.id
+            },
+        }
+    );
+
+   await Feedback.create({
+      clientId: clientId,
+      videoId: videoId,
+      response: response,
+      isStartServey: isStartServey,
+      isEndSurvey: isEndSurvey,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Feedback received successfully",
+    });
+  }
+
+  const videoQuestion = await Video.findByPk(videoId);
+
+//   console.log("videoQuestion" , videoQuestion)
+  // Process the survey data
+  const processedData = videoQuestion.videoData.map((question) => {
+    const responses = {};
+    console.log("question" , question)
+    question.answers.forEach((answer) => {
+      responses[answer.answer] = 0;
+    });
+    return {
+      question: question.question,
+      responses: responses,
+      multiple: question.multiple,
+      skip: question.skip,
+      noOfSkip: 0,
+    };
+  });
+
+  // Update the data based on client response
+  response.forEach((res) => {
+    const questionToUpdate = processedData.find(
+      (item) => item.question === res.question
+    );
+    if (questionToUpdate) {
+      if (res.skip) {
+        questionToUpdate["noOfSkip"]++;
+      } else {
+        res.ans.forEach((answer) => {
+          if (questionToUpdate.responses.hasOwnProperty(answer)) {
+            questionToUpdate.responses[answer]++;
+          }
+        });
+      }
+    }
+  });
+
+  console.log(processedData)
+
+   await Analytic.create({
+    videoId: videoId,
+    analyticData : processedData,
+    totalResponse: 1
+  });
+
+  const feedbackRes = await Feedback.create({
+    clientId: clientId,
+    videoId: videoId,
+    response: response,
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Feedback received successfully",
+    feedbackRes: feedbackRes,
+  });
+})
+
+const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
 
     // Extract the video ID from the request parameters
-    const { videoId } = req.params;
+    if(!req.params.videoId){
+        return next(
+            new ErrorHandler(
+                "videoId is missing",
+                400
+            )
+        )
+    }
 
     // Query the database to find feedback associated with the given video ID
-    const data = await Video.findOne({
+    const data = await Analytic.findOne({
         where:{
-             video_id : videoId
-        },
-        attributes: ['video_id'], // Include only the video_id field
-        include: [
-            {
-                model: Feedback,
-                as: 'feedback', // Alias for the association with Video model
-                attributes: { exclude: ['videoId',"createdAt","updatedAt","id"] } // Exclude the videoId field inside the Feedback model
-
-            }
-        ]
+             videoId : req.params.videoId
+        }
     });
     
+    if(!data){
+        return next(
+            new ErrorHandler(
+                "No data found with videoId",
+                404
+            )
+        )
+    }
 
     // Return the feedback as a response
     res.status(200).json({
         success: true,
+        message: "Data send successfully",
         data
     });
 })
@@ -212,5 +419,6 @@ module.exports = {
     registerLogin,
     verifyOtp,
     storeFeedback,
-    getFeedback
+    getAnalyticFeedbackData,
+    socialLogin
 }
