@@ -75,5 +75,32 @@ module.exports = {PASSWORD_REGEX,EMAIL_REGEX}
 //       }
 //     ]
 //   }
+
+
+// {
+//     "videoId": "12345456552",
+//     "clientId": "0b364775-d4b5-4dba-96c1-8e91a33bb310",
+//     "response": [
+//       {
+//           "question": "Did you like the concert?",
+//           "ans": [
+//               "Yes"
+//           ],
+//           "skip": false
+//       },
+//       {
+//           "question": "What aspects of the concerts did you liked?",
+//           "ans": [],
+//           "skip": true
+//       },
+//       {
+//           "question": "What aspects of the concert did you disliked?",
+//           "ans": [],
+//           "skip": true
+//       }
+//   ],
+//      "isStartServey": true,
+//      "isEndSurvey": true
+//   }
   
     

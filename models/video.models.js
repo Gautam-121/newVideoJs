@@ -39,6 +39,10 @@ const Video = sequelize.define('Video', {
     videoSelectedFile: {
         type: DataTypes.JSONB,
         allowNull: false,
+    },
+    isShared: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     }
 });
 

@@ -239,7 +239,7 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
 const storeFeedback = asyncHandler(async(req,res,next)=>{
 
-  const { clientId, videoId, response, isStartServey, isEndSurvey } = req.body;
+  const { clientId, videoId, response } = req.body;
 
   if (!clientId || !videoId || !response || response.length == 0) {
     return next(
@@ -250,11 +250,34 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     );
   }
 
-  const isResponseAlreadyExist = await Feedback.findOne({
-    where:{
-        clientId: clientId
-    }
-  })
+  const videoQuestion = await Video.findByPk(videoId);
+
+  if(!videoQuestion){
+    return next(
+        new ErrorHandler(
+            "Video Data not found",
+            404
+        )
+    )
+  }
+
+  const isResponseAlreadyExist = await Video.findOne({
+    where: {
+        video_id: videoId
+    },
+    attributes: ['video_id'], // Include only the video_id field
+    include: [
+        {
+            model: Feedback,
+            as: 'feedback', // Alias for the association with Video model
+            where: {
+                clientId: clientId // Filtering by clientId
+            },
+            attributes: { exclude: ['videoId', 'createdAt', 'updatedAt', 'id'] } // Exclude the videoId field inside the Feedback model
+        }
+    ]
+});
+
 
   if(isResponseAlreadyExist){
     return next(
@@ -271,27 +294,24 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     },
   });
 
-  console.log("analyticResponse" , analyticResponse)
 
   if (analyticResponse) {
+
     response.forEach((res) => {
       const questionToUpdate = analyticResponse.analyticData.find(
         (item) => item.question === res.question
       );
 
-      console.log("questionToUpdate 267" , questionToUpdate)
-
       if (questionToUpdate) {
-          if (res.skip) {
-            questionToUpdate["noOfSkip"]++;
-          } else {
-            res.ans.forEach((answer) => {
-                console.log("answer 274" , answer)
-              if (questionToUpdate.responses.hasOwnProperty(answer)) {
-                questionToUpdate.responses[answer]++;
-              }
-            });
-          }
+        if (res.skip) {
+          questionToUpdate["noOfSkip"]++;
+        } else {
+          res.ans.forEach((answer) => {
+            if (questionToUpdate.responses.hasOwnProperty(answer)) {
+              questionToUpdate.responses[answer]++;
+            }
+          });
+        }
       }
     });
 
@@ -311,8 +331,6 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
       clientId: clientId,
       videoId: videoId,
       response: response,
-      isStartServey: isStartServey,
-      isEndSurvey: isEndSurvey,
     });
 
     return res.status(200).json({
@@ -321,30 +339,29 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     });
   }
 
-  const videoQuestion = await Video.findByPk(videoId);
-
-//   console.log("videoQuestion" , videoQuestion)
-  // Process the survey data
   const processedData = videoQuestion.videoData.map((question) => {
     const responses = {};
-    console.log("question" , question)
+
     question.answers.forEach((answer) => {
       responses[answer.answer] = 0;
     });
+
     return {
       question: question.question,
       responses: responses,
       multiple: question.multiple,
       skip: question.skip,
       noOfSkip: 0,
-    };
-  });
+    }
+  })
 
   // Update the data based on client response
   response.forEach((res) => {
+
     const questionToUpdate = processedData.find(
       (item) => item.question === res.question
-    );
+    )
+
     if (questionToUpdate) {
       if (res.skip) {
         questionToUpdate["noOfSkip"]++;
@@ -357,8 +374,6 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
       }
     }
   });
-
-  console.log(processedData)
 
    await Analytic.create({
     videoId: videoId,

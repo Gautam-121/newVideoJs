@@ -305,6 +305,52 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   });
 })
 
+const updateVideoShared = asyncHandler( async(req , res, next)=>{
+
+  const { isShared } = req.body
+
+  const video = await Video.findOne({
+    where:{
+      video_id: req.params.id,
+      createdById: req.user.id
+    }
+  })
+
+  if(!video){
+    return next(
+      new ErrorHandler(
+        "Video not found",
+         404
+      )
+    )
+  }
+
+  if(!isShared || typeof(isShared) !== "boolean"){
+    return next(
+      new ErrorHandler(
+        "shared Field is required and type is boolean"
+      )
+    )
+  }
+
+  await Video.update(
+    {
+      isShared: isShared
+    },
+    {
+      where:{
+        video_id: req.params.id,
+        createdById: req.user.id
+      }
+    }
+  )
+
+  return res.status(200).json({
+    success: true,
+    message: "Data update successfully"
+  })
+})
+
 
 
 module.exports = { 
@@ -313,5 +359,6 @@ module.exports = {
   getAllVideo, 
   getVideoById,
   updateVideoData,
-  deleteVideoData
+  deleteVideoData,
+  updateVideoShared
 }

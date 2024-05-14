@@ -6,7 +6,8 @@ const {
   uploadVideo,
   createVideoData,
   deleteVideoData,
-  updateVideoData
+  updateVideoData,
+  updateVideoShared
 } = require("../controllers/video.controller.js");
 const upload = require("../middlewares/multer.middleware.js")
 const {verifyJWt} = require("../middlewares/auth.middleware.js")
@@ -23,6 +24,8 @@ router.post("/upload/media", verifyJWt ,  upload.fields([{ name: "video" }]), up
 router.put("/updateVideo/:id", verifyJWt , upload.any() , updateVideoData )
 
 router.delete("/deleteVideo/:id", verifyJWt , deleteVideoData )
+
+router.put("/update/shared/:id", verifyJWt , updateVideoShared)
 
 
 
