@@ -247,185 +247,115 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     })
 })
 
-const storeFeedback = asyncHandler(async(req,res,next)=>{
+const storeFeedback = asyncHandler(async (req, res, next) => {
+    
+    const { response } = req.body;
 
-  const {  response } = req.body;
+    if (!req.params.videoId) {
+        return next(new ErrorHandler("videoId is missing"));
+    }
 
-  if(!req.params.videoId){
-    return next(
-        new ErrorHandler(
-            "videoId is missing"
-        )
-    )
-  }
+    if (!response || response.length == 0) {
+        return next(new ErrorHandler("Provide all fields", 400));
+    }
 
-  if (!response || response.length == 0) {
-    return next(
-        new ErrorHandler(
-            "Provide all fields", 
-            400
-        )
-    );
-  }
+    const videoQuestion = await Video.findByPk(req.params.videoId);
 
-  const videoQuestion = await Video.findByPk(req.params.videoId);
+    if (!videoQuestion) {
+        return next(new ErrorHandler("Video Data not found", 404));
+    }
 
-  if(!videoQuestion){
-    return next(
-        new ErrorHandler(
-            "Video Data not found",
-            404
-        )
-    )
-  }
-
-  const isResponseAlreadyExist = await Video.findOne({
-    where: {
-        video_id: req.params.videoId
-    },
-    attributes: ['video_id'], // Include only the video_id field
-    include: [
-        {
-            model: Feedback,
-            as: 'feedback', // Alias for the association with Video model
-            where: {
-                clientId: req.user.id // Filtering by clientId
-            },
-            attributes: { exclude: ['videoId', 'createdAt', 'updatedAt', 'id'] } // Exclude the videoId field inside the Feedback model
-        }
-    ]
-});
-
-
-  if(isResponseAlreadyExist){
-    return next(
-        new ErrorHandler(
-            "Response i have alredy stored",
-            409
-        )
-    )
-  }
-
-  const analyticResponse = await Analytic.findOne({
-    where: {
-      videoId: req.params.videoId,
-    },
-  });
-
-  console.log("anaylaticResponseBefore" , analyticResponse.analyticData)
-
-  if (analyticResponse) {
-    console.log("line 317" , response)
-    response.forEach((res) => {
-      const questionToUpdate = analyticResponse.analyticData.find(
-        (item) => item.id === res.id
-      );
-
-      if (questionToUpdate) {
-        if (res.skip) {
-          questionToUpdate["noOfSkip"]++;
-        } else {
-            console.log("line 327" , response)
-          res.ans.forEach((answer) => {
-            if (questionToUpdate.responses.hasOwnProperty(answer)) {
-              questionToUpdate.responses[answer]++;
+    const isResponseAlreadyExist = await Video.findOne({
+        where: {
+            video_id: req.params.videoId
+        },
+        attributes: ['video_id'],
+        include: [
+            {
+                model: Feedback,
+                as: 'feedback',
+                where: {
+                    clientId: req.user.id
+                },
+                attributes: { exclude: ['videoId', 'createdAt', 'updatedAt', 'id'] }
             }
-          });
-        }
-      }
+        ]
     });
 
-    console.log("anaylaticResponseAfterUpdate" , analyticResponse.analyticData)
+    if (isResponseAlreadyExist) {
+        return next(new ErrorHandler("Response already stored", 409));
+    }
 
-    const updatedData = await Analytic.update(
-        { 
+    let analyticResponse = await Analytic.findOne({
+        where: {
+            videoId: req.params.videoId,
+        },
+    });
+
+    if (!analyticResponse) {
+        const processedData = videoQuestion.videoData[0].questions.map((question) => {
+            const responses = {};
+            question.answers.forEach((answer) => {
+                responses[answer.answer] = 0;
+            });
+
+            return {
+                id: question.id,
+                question: question.question,
+                responses: responses,
+                multiple: question.multiple,
+                skip: question.skip,
+                noOfSkip: 0,
+            }
+        });
+
+        analyticResponse = await Analytic.create({
+            videoId: req.params.videoId,
+            analyticData: processedData,
+            totalResponse: 0 // Changed to 0 since we will increment it later
+        });
+    }
+
+    response.forEach((res) => {
+        const questionToUpdate = analyticResponse.analyticData.find((item) => item.id === res.id);
+
+        if (questionToUpdate) {
+            if (res.skip) {
+                questionToUpdate.noOfSkip++;
+            } else {
+                res.ans.forEach((answer) => {
+                    if (questionToUpdate.responses.hasOwnProperty(answer)) {
+                        questionToUpdate.responses[answer]++;
+                    }
+                });
+            }
+        }
+    });
+
+    await Analytic.update(
+        {
             totalResponse: analyticResponse.totalResponse + 1,
             analyticData: analyticResponse.analyticData
         },
         {
-            where:{
-                id : analyticResponse.id
-            },
-            returning: true
+            where: {
+                id: analyticResponse.id
+            }
         }
     );
 
-    console.log("updatedData" , updatedData)
-
-   await Feedback.create({
-      clientId: req.user.id,
-      videoId: req.params.videoId,
-      response: response,
+    const feedbackRes = await Feedback.create({
+        clientId: req.user.id,
+        videoId: req.params.videoId,
+        response: response,
     });
 
     return res.status(200).json({
-      success: true,
-      message: "Feedback received successfully",
-      response:updatedData
+        success: true,
+        message: "Feedback received successfully",
+        feedbackRes: feedbackRes,
     });
-  }
-
-
-  const processedData = videoQuestion.videoData[0].questions.map((question) => {
-    const responses = {};
-    console.log("line 363" , question)
-    question.answers.forEach((answer) => {
-      responses[answer.answer] = 0;
-    });
-
-    return {
-      id: question.id,
-      question: question.question,
-      responses: responses,
-      multiple: question.multiple,
-      skip: question.skip,
-      noOfSkip: 0,
-    }
-  })
-
-  // Update the data based on client response
-
-  console.log("line 386" , response)
-  response.forEach((res) => {
-
-    console.log("res in 389" , res)
-
-    const questionToUpdate = processedData.find(
-      (item) => item.id === res.id
-    )
-
-    if (questionToUpdate) {
-      if (res.skip) {
-        questionToUpdate["noOfSkip"]++;
-      } else {
-        res.ans.forEach((answer) => {
-            console.log("answer 400" , answer)
-          if (questionToUpdate.responses.hasOwnProperty(answer)) {
-            questionToUpdate.responses[answer]++;
-          }
-        });
-      }
-    }
-  });
-
-   await Analytic.create({
-    videoId: req.params.videoId,
-    analyticData : processedData,
-    totalResponse: 1
-  });
-
-  const feedbackRes = await Feedback.create({
-    clientId: req.user.id,
-    videoId: req.params.videoId,
-    response: response,
-  });
-
-  return res.status(200).json({
-    success: true,
-    message: "Feedback received successfully",
-    feedbackRes: feedbackRes,
-  });
-})
+});
 
 const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
 
