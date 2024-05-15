@@ -251,9 +251,6 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
   const {  response } = req.body;
 
-  console.log(req.body)
-  console.log(response)
-
   if(!req.params.videoId){
     return next(
         new ErrorHandler(
@@ -272,8 +269,6 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
   }
 
   const videoQuestion = await Video.findByPk(req.params.videoId);
-
-  console.log("videoId line 276" , req.params?.videoId)
 
   if(!videoQuestion){
     return next(
@@ -317,6 +312,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     },
   });
 
+  console.log("anaylaticResponseBefore" , analyticResponse.analyticData)
 
   if (analyticResponse) {
     console.log("line 317" , response)
@@ -338,6 +334,8 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
         }
       }
     });
+
+    console.log("anaylaticResponseAfterUpdate" , analyticResponse.analyticData)
 
     await Analytic.update(
         { 
