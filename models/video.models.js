@@ -5,7 +5,8 @@ const Feedback = require('./feedback.models.js');
 
 const Video = sequelize.define('Video', {
     video_id: {
-        type: DataTypes.STRING,
+        type: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4,
         allowNull: false,
         unique: {
             args: true,

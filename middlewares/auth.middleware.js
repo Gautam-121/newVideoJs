@@ -27,8 +27,10 @@ const verifyJWt = async (req , res , next)=>{
              )
          )
      }
- 
+
+     
      const decodedToken = jwt.verify(token , process.env.JWT_SECRET)
+
  
      if(!decodedToken){
          return next(
@@ -38,6 +40,7 @@ const verifyJWt = async (req , res , next)=>{
              )
          )
      }
+
  
      const user = await User.findByPk(decodedToken.id,{
         attributes:{
@@ -58,6 +61,7 @@ const verifyJWt = async (req , res , next)=>{
      next()
 
    } catch (error) {
+    console.log(error)
      return next(
         new ErrorHandler(
             "Invalid Access Token",
