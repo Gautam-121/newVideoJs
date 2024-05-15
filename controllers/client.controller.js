@@ -364,9 +364,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
   }
 
 
-  console.log("line 365" , videoQuestion.videoData.question)
-
-  const processedData = videoQuestion.videoData.map((question) => {
+  const processedData = videoQuestion.videoData[0].questions.map((question) => {
     const responses = {};
     console.log("line 363" , question)
     question.answers.forEach((answer) => {
