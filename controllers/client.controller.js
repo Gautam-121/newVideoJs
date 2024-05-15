@@ -5,7 +5,7 @@ const ErrorHandler = require("../utils/errorHandler");
 const Video = require("../models/video.models.js")
 const Analytic = require("../models/analytic.models.js")
 const sendEmail = require("../utils/sendEmail.js")
-const { Op, where } = require('sequelize');
+const { Op } = require('sequelize');
 const { isValidEmail } = require("../utils/validator.js");
 
 
@@ -173,10 +173,13 @@ const verifyOtp = asyncHandler(async(req,res,next)=>{
     
     await user.save({validate: false})
 
+    const accessToken = await user.generateToken()
+
     return res.status(200).json({
         success: true,
         message: "Authentication successful",
-        user
+        user,
+        accessToken
     })
  
 })
@@ -210,10 +213,14 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     })
 
     if(existingClient){
+
+        const accessToken = await existingClient.generateToken()
+
         return res.status(200).json({
             success: true,
             message: "Authentication successfull",
-            user: existingClient
+            user: existingClient,
+            accessToken
         })
     }
 
@@ -230,18 +237,29 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         )
     }
 
+    const accessToken = await user.generateToken()
+
     return res.status(200).json({
         success: true,
         message: "Authentication successfull",
-        user
+        user,
+        accessToken
     })
 })
 
 const storeFeedback = asyncHandler(async(req,res,next)=>{
 
-  const { clientId, videoId, response } = req.body;
+  const {  response } = req.body;
 
-  if (!clientId || !videoId || !response || response.length == 0) {
+  if(!req.params.videoId){
+    return next(
+        new ErrorHandler(
+            "videoId is missing"
+        )
+    )
+  }
+
+  if (!response || response.length == 0) {
     return next(
         new ErrorHandler(
             "Provide all fields", 
@@ -250,7 +268,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     );
   }
 
-  const videoQuestion = await Video.findByPk(videoId);
+  const videoQuestion = await Video.findByPk(req.params.videoId);
 
   if(!videoQuestion){
     return next(
@@ -263,7 +281,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
   const isResponseAlreadyExist = await Video.findOne({
     where: {
-        video_id: videoId
+        video_id: req.params.videoId
     },
     attributes: ['video_id'], // Include only the video_id field
     include: [
@@ -271,7 +289,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
             model: Feedback,
             as: 'feedback', // Alias for the association with Video model
             where: {
-                clientId: clientId // Filtering by clientId
+                clientId: req.user.id // Filtering by clientId
             },
             attributes: { exclude: ['videoId', 'createdAt', 'updatedAt', 'id'] } // Exclude the videoId field inside the Feedback model
         }
@@ -290,7 +308,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
   const analyticResponse = await Analytic.findOne({
     where: {
-      videoId: videoId,
+      videoId: req.params.videoId,
     },
   });
 
@@ -328,8 +346,8 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     );
 
    await Feedback.create({
-      clientId: clientId,
-      videoId: videoId,
+      clientId: req.user.id,
+      videoId: req.params.videoId,
       response: response,
     });
 
@@ -376,14 +394,14 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
   });
 
    await Analytic.create({
-    videoId: videoId,
+    videoId: req.params.videoId,
     analyticData : processedData,
     totalResponse: 1
   });
 
   const feedbackRes = await Feedback.create({
-    clientId: clientId,
-    videoId: videoId,
+    clientId: req.user.id,
+    videoId: req.params.videoId,
     response: response,
   });
 

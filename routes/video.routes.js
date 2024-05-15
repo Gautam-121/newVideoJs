@@ -19,7 +19,7 @@ router.get("/getAllVideo", verifyJWt ,  getAllVideo);
 
 router.get("/getVideoById/:id" ,  getVideoById)
 
-router.post("/upload/media", verifyJWt ,  upload.fields([{ name: "video" }]), uploadVideo);
+router.post("/upload/media" ,  upload.fields([{ name: "video" }]), uploadVideo);
 
 router.put("/updateVideo/:id", verifyJWt , upload.any() , updateVideoData )
 
