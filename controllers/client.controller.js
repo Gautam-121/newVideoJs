@@ -386,6 +386,8 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
   console.log("line 386" , response)
   response.forEach((res) => {
 
+    console.log("res in 389" , res)
+
     const questionToUpdate = processedData.find(
       (item) => item.id === res.id
     )
@@ -395,6 +397,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
         questionToUpdate["noOfSkip"]++;
       } else {
         res.ans.forEach((answer) => {
+            console.log("answer 400" , answer)
           if (questionToUpdate.responses.hasOwnProperty(answer)) {
             questionToUpdate.responses[answer]++;
           }
