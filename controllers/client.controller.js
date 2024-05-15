@@ -361,9 +361,12 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
     });
   }
 
+
+  console.log(videoQuestion)
+
   const processedData = videoQuestion.videoData.map((question) => {
     const responses = {};
-    console.log("line 363" , responses)
+    console.log("line 363" , question)
     question.answers.forEach((answer) => {
       responses[answer.answer] = 0;
     });
@@ -379,6 +382,8 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
   })
 
   // Update the data based on client response
+
+  console.log("line 386" , response)
   response.forEach((res) => {
 
     const questionToUpdate = processedData.find(
