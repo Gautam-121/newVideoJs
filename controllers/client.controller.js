@@ -337,7 +337,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
     console.log("anaylaticResponseAfterUpdate" , analyticResponse.analyticData)
 
-    await Analytic.update(
+    const updatedData = await Analytic.update(
         { 
             totalResponse: analyticResponse.totalResponse + 1,
             analyticData: analyticResponse.analyticData
@@ -346,8 +346,11 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
             where:{
                 id : analyticResponse.id
             },
+            returning: true
         }
     );
+
+    console.log("updatedData" , updatedData)
 
    await Feedback.create({
       clientId: req.user.id,
