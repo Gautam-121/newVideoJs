@@ -273,7 +273,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
   const videoQuestion = await Video.findByPk(req.params.videoId);
 
-  console.log("videoId line 276" , req.params.videoId)
+  console.log("videoId line 276" , req.params?.videoId)
 
   if(!videoQuestion){
     return next(
