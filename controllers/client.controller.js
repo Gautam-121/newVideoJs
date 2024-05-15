@@ -251,6 +251,9 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
   const {  response } = req.body;
 
+  console.log(req.body)
+  console.log(response)
+
   if(!req.params.videoId){
     return next(
         new ErrorHandler(
