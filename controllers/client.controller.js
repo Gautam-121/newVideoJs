@@ -314,16 +314,17 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
 
   if (analyticResponse) {
-
+    console.log("line 317" , response)
     response.forEach((res) => {
       const questionToUpdate = analyticResponse.analyticData.find(
-        (item) => item.question === res.question
+        (item) => item.id === res.id
       );
 
       if (questionToUpdate) {
         if (res.skip) {
           questionToUpdate["noOfSkip"]++;
         } else {
+            console.log("line 327" , response)
           res.ans.forEach((answer) => {
             if (questionToUpdate.responses.hasOwnProperty(answer)) {
               questionToUpdate.responses[answer]++;
@@ -359,12 +360,13 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
 
   const processedData = videoQuestion.videoData.map((question) => {
     const responses = {};
-
+    console.log("line 363" , responses)
     question.answers.forEach((answer) => {
       responses[answer.answer] = 0;
     });
 
     return {
+      id: question.id,
       question: question.question,
       responses: responses,
       multiple: question.multiple,
@@ -377,7 +379,7 @@ const storeFeedback = asyncHandler(async(req,res,next)=>{
   response.forEach((res) => {
 
     const questionToUpdate = processedData.find(
-      (item) => item.question === res.question
+      (item) => item.id === res.id
     )
 
     if (questionToUpdate) {

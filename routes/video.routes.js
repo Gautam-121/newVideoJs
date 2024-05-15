@@ -17,7 +17,7 @@ router.post("/upload/multipleMedia", verifyJWt ,  upload.any() , createVideoData
 
 router.get("/getAllVideo", verifyJWt ,  getAllVideo);
 
-router.get("/getVideoById/:id" ,  getVideoById)
+router.get("/getVideoById/:id" ,   getVideoById)
 
 router.post("/upload/media" ,  upload.fields([{ name: "video" }]), uploadVideo);
 
