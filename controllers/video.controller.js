@@ -428,6 +428,5 @@ module.exports = {
   updateVideoData,
   deleteVideoData,
   updateVideoShared,
-  getVideoByClient,
   getAnalyticFeedbackData
 }

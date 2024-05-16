@@ -11,7 +11,7 @@ const {
   getAnalyticFeedbackData
 } = require("../controllers/video.controller.js");
 const upload = require("../middlewares/multer.middleware.js")
-const {verifyJWt, verifyClientToken} = require("../middlewares/auth.middleware.js")
+const {verifyJWt} = require("../middlewares/auth.middleware.js")
 
 
 router.post("/upload/multipleMedia", verifyJWt ,  upload.any() , createVideoData);
