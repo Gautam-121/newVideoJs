@@ -2,6 +2,7 @@ const Video = require("../models/video.models");
 const asyncHandler = require("../utils/asyncHandler");
 const ErrorHandler = require("../utils/errorHandler");
 const fs = require("fs")
+const Analytic = require("../models/analytic.models.js")
 const {deleteObjectsFromS3,uploadFileToS3} = require("../utils/aws.js")
 
 

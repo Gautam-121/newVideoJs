@@ -1,4 +1,3 @@
-const User = require("../models/user.models.js")
 const jwt = require("jsonwebtoken")
 const ErrorHandler = require("../utils/errorHandler.js")
 const Client = require("../models/client.models.js")
