@@ -3,11 +3,11 @@ const {
   registerLogin,
   verifyOtp,
   storeFeedback,
-  getAnalyticFeedbackData,
   socialLogin,
+  getFeedBack,
+  getVideoByClient
 } = require("../controllers/client.controller");
 const {
-  verifyJWt,
   verifyClientToken
 } = require("../middlewares/auth.middleware.js") 
 const router = express.Router()
@@ -20,7 +20,10 @@ router.route("/verify-otp").post(verifyOtp)
 
 router.route("/analytic/feedback/:videoId").post( verifyClientToken , storeFeedback)
 
-router.route("/analytic/feedback/:videoId").get( verifyJWt , getAnalyticFeedbackData)
+router.route("/feedback/:videoId").get( verifyClientToken , getFeedBack )
+
+router.get("/getVideoById/:customerId/:videoId" , verifyClientToken , getVideoByClient )
+
 
 
 

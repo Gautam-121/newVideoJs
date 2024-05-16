@@ -7,25 +7,29 @@ const {
   createVideoData,
   deleteVideoData,
   updateVideoData,
-  updateVideoShared
+  updateVideoShared,
+  getAnalyticFeedbackData
 } = require("../controllers/video.controller.js");
 const upload = require("../middlewares/multer.middleware.js")
-const {verifyJWt} = require("../middlewares/auth.middleware.js")
+const {verifyJWt, verifyClientToken} = require("../middlewares/auth.middleware.js")
 
 
 router.post("/upload/multipleMedia", verifyJWt ,  upload.any() , createVideoData);
 
 router.get("/getAllVideo", verifyJWt ,  getAllVideo);
 
-router.get("/getVideoById/:id" ,   getVideoById)
+router.get("/getVideoById/:id" , verifyJWt ,  getVideoById)
 
-router.post("/upload/media" ,  upload.fields([{ name: "video" }]), uploadVideo);
+router.post("/upload/media" , verifyJWt ,  upload.fields([{ name: "video" }]), uploadVideo);
 
 router.put("/updateVideo/:id", verifyJWt , upload.any() , updateVideoData )
 
 router.delete("/deleteVideo/:id", verifyJWt , deleteVideoData )
 
 router.put("/update/shared/:id", verifyJWt , updateVideoShared)
+
+router.route("/analytic/feedback/:videoId").get( verifyJWt , getAnalyticFeedbackData)
+
 
 
 

@@ -7,6 +7,8 @@ const Analytic = require("../models/analytic.models.js")
 const sendEmail = require("../utils/sendEmail.js")
 const { Op } = require('sequelize');
 const { isValidEmail } = require("../utils/validator.js");
+const { fn, cast, literal } = require('sequelize');
+
 
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
@@ -247,6 +249,42 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     })
 })
 
+const getVideoByClient = asyncHandler(async (req , res , next)=>{
+
+    const {customerId , videoId} = req.params
+    
+    if(!customerId || !videoId) {
+      return next(
+        new ErrorHandler(
+          "Please send me all required params" ,
+           400
+        )
+      )
+    }
+  
+    const videoData = await Video.findOne({
+      where: { 
+        video_id: videoId,
+        createdBy: customerId
+      }
+    })
+    
+    if (!videoData) {
+      return next(
+        new ErrorHandler(
+          "Video data not Found",
+          404
+        )
+      )
+    }
+  
+    return res.status(200).json({
+      success: true,
+      message: "Data Send Successfully",
+      data: videoData
+    })
+})
+
 const storeFeedback = asyncHandler(async (req, res, next) => {
     
     const { response } = req.body;
@@ -265,22 +303,14 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         return next(new ErrorHandler("Video Data not found", 404));
     }
 
-    const isResponseAlreadyExist = await Video.findOne({
+
+    const isResponseAlreadyExist = await Feedback.findOne({
         where: {
-            video_id: req.params.videoId
-        },
-        attributes: ['video_id'],
-        include: [
-            {
-                model: Feedback,
-                as: 'feedback',
-                where: {
-                    clientId: req.user.id
-                },
-                attributes: { exclude: ['videoId', 'createdAt', 'updatedAt', 'id'] }
-            }
-        ]
+            videoId: req.params.videoId,
+            clientId: req.user.id,
+        }
     });
+
 
     if (isResponseAlreadyExist) {
         return next(new ErrorHandler("Response already stored", 409));
@@ -357,46 +387,49 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     });
 });
 
-const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
+const getFeedBack = asyncHandler( async (req , res , next)=>{
 
-    // Extract the video ID from the request parameters
-    if(!req.params.videoId){
+    const { videoId } = req.params
+
+    if(!videoId){
         return next(
             new ErrorHandler(
-                "videoId is missing",
-                400
+                "Please provide all params field"
             )
         )
     }
 
-    // Query the database to find feedback associated with the given video ID
-    const data = await Analytic.findOne({
-        where:{
-             videoId : req.params.videoId
+    const feedbackExist = await Feedback.findOne({
+        where: {
+            videoId: videoId,
+            clientId: req.user.id,
         }
     });
-    
-    if(!data){
+
+    if(!feedbackExist){
         return next(
             new ErrorHandler(
-                "No data found with videoId",
+                "No feedback found",
                 404
             )
         )
     }
 
-    // Return the feedback as a response
-    res.status(200).json({
+    return res.status(200).json({
         success: true,
         message: "Data send successfully",
-        data
-    });
+        data: feedbackExist
+    })
 })
+
+
+
 
 module.exports = {
     registerLogin,
     verifyOtp,
     storeFeedback,
-    getAnalyticFeedbackData,
-    socialLogin
+    socialLogin,
+    getFeedBack,
+    getVideoByClient
 }

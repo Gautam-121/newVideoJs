@@ -21,7 +21,7 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 
   const video = await Video.create({
     ...data,
-    createdById: req.user.id
+    createdBy: req.user?.obj?.id
   });
 
   const videoData = await Video.findByPk(video.video_id)
@@ -46,8 +46,6 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 const uploadVideo = asyncHandler(async(req , res , next)=>{
 
   const videoFilePath = req?.files?.["video"]?.[0]?.filename;
-
-  console.log(req.files)
 
   // const videoLocalFilePath = req?.files?.["video"]?.[0]?.path
   // if(!videoLocalFilePath){
@@ -102,12 +100,21 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
 
   const videoResult = await Video.findAndCountAll({
     where: {
-      createdById: req.user.id
+      createdBy: req.user?.obj?.id
     },
 
     limit: pageSize,
     offset: offset,
   });
+
+  if(!videoResult || videoResult.length == 0){
+    return next(
+      new ErrorHandler(
+        "No data found",
+        404
+      )
+    )
+  }
 
   const totalPages = Math.ceil(videoResult.count / pageSize);
 
@@ -136,6 +143,7 @@ const getVideoById = asyncHandler(async (req, res, next) => {
   const videoData = await Video.findOne({
     where: { 
       video_id: id,
+      createdBy: req.user?.obj?.id
     }
   })
   
@@ -167,7 +175,7 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
   const video = await Video.findOne({
     where:{
       video_id: req.params.id,
-      createdById: req.user.id
+      createdBy: req.user?.obj?.id
     }
   })
 
@@ -222,7 +230,7 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
     {
       where:{
         video_id: req.params.id,
-        createdById: req.user.id
+        createdBy: req.user?.obj?.id
       },
       returning: true
     }
@@ -260,7 +268,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   const video = await Video.findOne({
     where: {
       video_id: req.params.id,
-      createdById: req.user.id,
+      createdBy: req.user?.obj?.id
     },
   });
 
@@ -289,7 +297,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   const deleteVideo = await Video.destroy({
     where: {
       video_id: req.params.id,
-      createdById: req.user.id,
+      createdBy: req.user?.obj?.id
     },
   });
 
@@ -327,7 +335,7 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
   const video = await Video.findOne({
     where:{
       video_id: req.params.id,
-      createdById: req.user.id
+      createdBy: req.user?.obj?.id
     }
   })
 
@@ -355,7 +363,7 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
     {
       where:{
         video_id: req.params.id,
-        createdById: req.user.id
+        createdBy: req.user?.obj?.id
       }
     }
   )
@@ -366,6 +374,50 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
   })
 })
 
+const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
+
+  // Extract the video ID from the request parameters
+  if(!req.params.videoId){
+      return next(
+          new ErrorHandler(
+              "videoId is missing",
+              400
+          )
+      )
+  }
+
+  // Query the database to find feedback associated with the given video ID
+  const data = await Analytic.findOne({
+      where:{
+          videoId : req.params.videoId
+      },
+  });
+
+  const video = await Video.findOne({
+      where: { 
+          video_id: req.params.videoId,
+          createdBy: req.user?.obj?.id
+        }
+  })
+  
+  if(!data || !video){
+      return next(
+          new ErrorHandler(
+              "No data found with videoId associated with admin",
+              404
+          )
+      )
+  }
+
+  data.videoId = video
+
+  // Return the feedback as a response
+  res.status(200).json({
+      success: true,
+      message: "Data send successfully",
+      data,
+  });
+})
 
 
 module.exports = { 
@@ -375,5 +427,7 @@ module.exports = {
   getVideoById,
   updateVideoData,
   deleteVideoData,
-  updateVideoShared
+  updateVideoShared,
+  getVideoByClient,
+  getAnalyticFeedbackData
 }

@@ -27,11 +27,9 @@ const verifyJWt = async (req , res , next)=>{
              )
          )
      }
+    
+     const decodedToken = jwt.verify(token , process.env.JWT_ADMIN_SECRET)
 
-     
-     const decodedToken = jwt.verify(token , process.env.JWT_SECRET)
-
- 
      if(!decodedToken){
          return next(
              new ErrorHandler(
@@ -41,23 +39,7 @@ const verifyJWt = async (req , res , next)=>{
          )
      }
 
- 
-     const user = await User.findByPk(decodedToken.id,{
-        attributes:{
-            exclude: ["password"]
-        }
-     })
-
-     if(!user){
-        return next(
-            new ErrorHandler(
-                "Invalid Access Token",
-                401
-            )
-        )
-     }
-
-     req.user = user
+     req.user = decodedToken?.obj
      next()
 
    } catch (error) {

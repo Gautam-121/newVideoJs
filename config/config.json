@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "Gautam@12",
+    "database": "videoProject",
+    "host": "localhost",
+    "dialect": "postgres"
+  },
+  "test": {
+    "username": "postgres",
+    "password": "Gautam@12",
+    "database": "videoProject",
+    "host": "localhost",
+    "dialect": "postgres"
+  },
+  "production": {
+    "username": "postgres",
+    "password": "Gautam@12",
+    "database": "videoProject",
+    "host": "localhost",
+    "dialect": "postgres"
+  }
+}

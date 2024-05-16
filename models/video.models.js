@@ -5,8 +5,8 @@ const Feedback = require('./feedback.models.js');
 
 const Video = sequelize.define('Video', {
     video_id: {
-        type: DataTypes.UUIDV4,
-        defaultValue: DataTypes.UUIDV4,
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV1,
         allowNull: false,
         unique: {
             args: true,
@@ -44,13 +44,12 @@ const Video = sequelize.define('Video', {
     isShared: {
         type: DataTypes.BOOLEAN,
         defaultValue: false
+    },
+    createdBy:{
+        type:DataTypes.UUID,
+        allowNull: false
     }
 });
-
-Video.belongsTo(User,{
-    foreignKey:"createdById",
-    as: "createdByRes"
-})
 
 Video.hasMany(Feedback, { // Assuming each video can have multiple feedbacks
     foreignKey: 'videoId',
