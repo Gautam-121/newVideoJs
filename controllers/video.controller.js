@@ -44,9 +44,10 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 })
 
 // Upload video file
-const uploadVideo = asyncHandler(async(req , res , next)=>{
+const uploadVideo = async(req , res , next)=>{
+  try {
 
-  const videoFilePath = req?.files?.["video"]?.[0]?.filename;
+    const videoFilePath = req?.file?.filename;
 
   // const videoLocalFilePath = req?.files?.["video"]?.[0]?.path
   // if(!videoLocalFilePath){
@@ -89,7 +90,75 @@ const uploadVideo = asyncHandler(async(req , res , next)=>{
     message:"Video Uploaded Successfully",
     videoUrl: videoFilePath
   })
-})
+  } catch (error) {
+    if(req.file?.filename){
+      fs.unlinkSync(req.file.path)
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong while uploading video"
+    })
+  }
+}
+
+const uploadThumb= async(req , res , next)=>{
+  try {
+
+    const thumbnailFilePath = req?.file?.filename;
+
+  // const videoLocalFilePath = req?.files?.["video"]?.[0]?.path
+  // if(!videoLocalFilePath){
+  //   return next(
+  //     new ErrorHandler(
+  //       "Missing Video File , Provide video file",
+  //        400
+  //     )
+  //   )
+  // }
+
+  // const uploadFileOnAwsS3 = await uploadFileToS3(videoLocalFilePath)
+
+  // if(!uploadFileOnAwsS3){
+  //   return next(
+  //     new ErrorHandler(
+  //       "Something went wrong while uploding file on Aws s3 cloud",
+  //        500
+  //     )
+  //   )
+  // }
+
+  // return res.status(201).json({
+  //   success: true,
+  //   message: "Video Uploaded Successfully",
+  //   videoUrl: uploadFileOnAwsS3
+  // })
+
+  if(!thumbnailFilePath){
+    return next(
+      new ErrorHandler(
+        "Missing Video File , Provide video file",
+         400
+      )
+    )
+  }
+
+  return res.status(201).json({
+    success:true,
+    message:"thumbnail Uploaded Successfully",
+    thumbnailUrl: thumbnailFilePath
+  })
+  } catch (error) {
+    if(req.file?.filename){
+      fs.unlinkSync(req.file.path)
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong while uploading video"
+    })
+  }
+}
 
 // get all created Video Data 
 const getAllVideo = asyncHandler(async (req, res, next) => {
@@ -103,7 +172,6 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
     where: {
       createdBy: req.user?.obj?.id
     },
-
     limit: pageSize,
     offset: offset,
   });
@@ -429,5 +497,6 @@ module.exports = {
   updateVideoData,
   deleteVideoData,
   updateVideoShared,
-  getAnalyticFeedbackData
+  getAnalyticFeedbackData,
+  uploadThumb
 }

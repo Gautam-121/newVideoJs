@@ -1,28 +1,30 @@
 const express = require("express");
 const router = express.Router();
 const {
+  uploadVideo,
+  uploadThumb,
   getAllVideo,
   getVideoById,
-  uploadVideo,
   createVideoData,
   deleteVideoData,
   updateVideoData,
   updateVideoShared,
   getAnalyticFeedbackData
 } = require("../controllers/video.controller.js");
-const upload = require("../middlewares/multer.middleware.js")
+const { uploadThumbnail , uploadVideos } = require("../middlewares/multer.middleware.js")
 const {verifyJWt} = require("../middlewares/auth.middleware.js")
 
+router.post("/upload/media"  , verifyJWt ,  uploadVideos.single("video"), uploadVideo);
 
-router.post("/upload/multipleMedia", verifyJWt ,  upload.any() , createVideoData);
+router.post("/upload/thumbnail" , verifyJWt , uploadThumbnail.single("thumbnail") , uploadThumb)
+
+router.post("/upload/multipleMedia", verifyJWt ,  uploadVideos.any() , createVideoData);
 
 router.get("/getAllVideo", verifyJWt ,  getAllVideo);
 
 router.get("/getVideoById/:id" , verifyJWt ,  getVideoById)
 
-router.post("/upload/media" , verifyJWt ,  upload.fields([{ name: "video" }]), uploadVideo);
-
-router.put("/updateVideo/:id", verifyJWt , upload.any() , updateVideoData )
+router.put("/updateVideo/:id", verifyJWt , uploadVideos.any() , updateVideoData )
 
 router.delete("/deleteVideo/:id", verifyJWt , deleteVideoData )
 
