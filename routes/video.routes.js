@@ -9,7 +9,8 @@ const {
   deleteVideoData,
   updateVideoData,
   updateVideoShared,
-  getAnalyticFeedbackData
+  getAnalyticFeedbackData,
+  summeryResponse
 } = require("../controllers/video.controller.js");
 const { uploadThumbnail , uploadVideos } = require("../middlewares/multer.middleware.js")
 const {verifyJWt} = require("../middlewares/auth.middleware.js")
@@ -31,6 +32,8 @@ router.delete("/deleteVideo/:id", verifyJWt , deleteVideoData )
 router.put("/update/shared/:id", verifyJWt , updateVideoShared)
 
 router.route("/analytic/feedback/:videoId").get( verifyJWt , getAnalyticFeedbackData)
+
+router.route("/analytic/feedback/summary/:id").get( verifyJWt , summeryResponse )
 
 
 

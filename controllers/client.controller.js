@@ -7,9 +7,7 @@ const Analytic = require("../models/analytic.models.js")
 const sendEmail = require("../utils/sendEmail.js")
 const { Op } = require('sequelize');
 const { isValidEmail } = require("../utils/validator.js");
-const { fn, cast, literal } = require('sequelize');
-
-
+const { IsValidUUID } = require("../constants.js");
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
 
@@ -183,7 +181,6 @@ const verifyOtp = asyncHandler(async(req,res,next)=>{
         user,
         accessToken
     })
- 
 })
 
 const socialLogin = asyncHandler(async(req,res,next)=>{
@@ -261,6 +258,10 @@ const getVideoByClient = asyncHandler(async (req , res , next)=>{
         )
       )
     }
+
+    if(!IsValidUUID(customerId) || !IsValidUUID(videoId)){
+        return next(new ErrorHandler("Must be a valid UUID", 400))
+    }
   
     const videoData = await Video.findOne({
       where: { 
@@ -293,6 +294,10 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         return next(new ErrorHandler("videoId is missing"));
     }
 
+    if(!IsValidUUID(req.params.videoId)){
+        return next(new ErrorHandler("Must be valid UUID", 400))
+    }
+
     if (!response || response.length == 0) {
         return next(new ErrorHandler("Provide all fields", 400));
     }
@@ -303,14 +308,12 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         return next(new ErrorHandler("Video Data not found", 404));
     }
 
-
     const isResponseAlreadyExist = await Feedback.findOne({
         where: {
             videoId: req.params.videoId,
             clientId: req.user.id,
         }
     });
-
 
     if (isResponseAlreadyExist) {
         return next(new ErrorHandler("Response already stored", 409));
@@ -323,25 +326,32 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     });
 
     if (!analyticResponse) {
-        const processedData = videoQuestion.videoData[0].questions.map((question) => {
+
+        let finalProccessData = []
+
+        videoQuestion.videoData.forEach((item) => {
+          const processedData = item.questions.map((question) => {
             const responses = {};
             question.answers.forEach((answer) => {
-                responses[answer.answer] = 0;
+              responses[answer.answer] = 0;
             });
 
             return {
-                id: question.id,
-                question: question.question,
-                responses: responses,
-                multiple: question.multiple,
-                skip: question.skip,
-                noOfSkip: 0,
-            }
+              id: question.id,
+              question: question.question,
+              responses: responses,
+              multiple: question.multiple,
+              skip: question.skip,
+              noOfSkip: 0,
+            };
+          });
+
+          finalProccessData = finalProccessData.concat(processedData)
         });
 
         analyticResponse = await Analytic.create({
             videoId: req.params.videoId,
-            analyticData: processedData,
+            analyticData: finalProccessData,
             totalResponse: 0 // Changed to 0 since we will increment it later
         });
     }
@@ -397,6 +407,10 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
                 "Please provide all params field"
             )
         )
+    }
+
+    if(!IsValidUUID(videoId)){
+        return next(new ErrorHandler("Must be valid UUID", 400))
     }
 
     const feedbackExist = await Feedback.findOne({

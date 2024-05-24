@@ -3,8 +3,13 @@ const asyncHandler = require("../utils/asyncHandler");
 const ErrorHandler = require("../utils/errorHandler");
 const fs = require("fs")
 const Analytic = require("../models/analytic.models.js")
-const {deleteObjectsFromS3,uploadFileToS3} = require("../utils/aws.js")
+const OpenAI = require("openai");
+const {deleteObjectsFromS3,uploadFileToS3} = require("../utils/aws.js");
+const { IsValidUUID } = require("../constants.js");
 
+const openAi = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+})
 
 // CREATING UPLOADMEDIA DATA
 const createVideoData = asyncHandler(async (req, res, next) => {
@@ -209,6 +214,10 @@ const getVideoById = asyncHandler(async (req, res, next) => {
     )
   }
 
+  if(!IsValidUUID(id)){
+    return next(new ErrorHandler("Must be a valid UUID", 400))
+  }
+
   const videoData = await Video.findOne({
     where: { 
       video_id: id,
@@ -241,9 +250,19 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
   // verify successfully updated or not
   // successfully updated send respond to user
 
+  const { id } = req.params
+
+  if(!id) {
+    return next(new ErrorHandler("Video_id is Missing" , 400))
+  }
+
+  if(!IsValidUUID(id)){
+    return next(new ErrorHandler("Must be a valid UUID", 400))
+  }
+
   const video = await Video.findOne({
     where:{
-      video_id: req.params.id,
+      video_id: id,
       createdBy: req.user?.obj?.id
     }
   })
@@ -298,7 +317,7 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
     data,
     {
       where:{
-        video_id: req.params.id,
+        video_id: id,
         createdBy: req.user?.obj?.id
       },
       returning: true
@@ -325,7 +344,9 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 // delete MultiMedia Data
 const deleteVideoData = asyncHandler(async (req,res,next)=>{
 
-  if (!req.params.id) {
+  const { id } = req.params
+
+  if (!id) {
     return next(
       new ErrorHandler(
         "Missing Video id", 
@@ -334,9 +355,13 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
     );
   }
 
+  if(!IsValidUUID(id)){
+    return next(new ErrorHandler("Must be valid UUID" , 400))
+  }
+
   const video = await Video.findOne({
     where: {
-      video_id: req.params.id,
+      video_id: id,
       createdBy: req.user?.obj?.id
     },
   });
@@ -365,7 +390,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
 
   const deleteVideo = await Video.destroy({
     where: {
-      video_id: req.params.id,
+      video_id: id,
       createdBy: req.user?.obj?.id
     },
   });
@@ -400,10 +425,24 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
 const updateVideoShared = asyncHandler( async(req , res, next)=>{
 
   const { isShared } = req.body
+  const { id } = req.params
+
+  if(!id) {
+    return next(
+      new ErrorHandler(
+        "Video_id is Missing" ,
+         400
+      )
+    )
+  }
+
+  if(!IsValidUUID(id)){
+    return next(new ErrorHandler("Must be a valid UUID", 400))
+  }
 
   const video = await Video.findOne({
     where:{
-      video_id: req.params.id,
+      video_id: id,
       createdBy: req.user?.obj?.id
     }
   })
@@ -431,7 +470,7 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
     },
     {
       where:{
-        video_id: req.params.id,
+        video_id: id,
         createdBy: req.user?.obj?.id
       }
     }
@@ -445,8 +484,10 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
 
 const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
 
+  const { videoId } = req.params 
+
   // Extract the video ID from the request parameters
-  if(!req.params.videoId){
+  if(!videoId){
       return next(
           new ErrorHandler(
               "videoId is missing",
@@ -455,21 +496,26 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
       )
   }
 
-  // Query the database to find feedback associated with the given video ID
-  const data = await Analytic.findOne({
-      where:{
-          videoId : req.params.videoId
-      },
-  });
+  if(!IsValidUUID(videoId)){
+    return next(new ErrorHandler("Must be valid UUID", 400))
+  }
 
-  const video = await Video.findOne({
-      where: { 
-          video_id: req.params.videoId,
-          createdBy: req.user?.obj?.id
-        }
-  })
+  const data = await Analytic.findOne({
+    where:{
+      videoId: videoId
+    },
+    include: [{
+      model: Video,
+      as: "videoRes",
+      where: {
+        createdBy: req.user?.obj?.id
+      },
+      attributes:[]
+    }]
+  });
   
-  if(!data || !video){
+  
+  if(!data){
       return next(
           new ErrorHandler(
               "No data found with videoId associated with admin",
@@ -478,8 +524,6 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
       )
   }
 
-  data.videoId = video
-
   // Return the feedback as a response
   res.status(200).json({
       success: true,
@@ -487,6 +531,61 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
       data,
   });
 })
+
+const summeryResponse = async (req, res, next) => {
+  try {
+
+    const { id } = req.params;
+
+    if (!id) {
+      return next(new ErrorHandler("Mising required field id", 400));
+    }
+
+    // if (!IsValidUUID(id)) {
+    //   return next(new ErrorHandler("Must be a valid UUID", 400));
+    // }
+
+    const analyticResponse = await Analytic.findByPk(id,{
+      include: [{
+        model: Video,
+        as:"videoRes",
+        where: {
+            createdBy: req.user?.obj?.id
+        },
+        attributes:[]
+    }],
+      attributes:{
+        exclude: ["id","createdAt","updatedAt","videoId"]
+      }
+    })
+
+    if(!analyticResponse){
+      return next( new ErrorHandler("analytic not found", 404))
+    }
+
+    const jsonString = JSON.stringify(analyticResponse);
+
+    const completion = await openAi.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `this is the data, I want to identify patterns, trends, and areas for improvement based on the responses. ${jsonString}`,
+        },
+      ],
+      model: "gpt-3.5-turbo",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: completion.choices[0],
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong to genearting summary",
+    });
+  }
+};
 
 
 module.exports = { 
@@ -498,5 +597,6 @@ module.exports = {
   deleteVideoData,
   updateVideoShared,
   getAnalyticFeedbackData,
-  uploadThumb
+  uploadThumb,
+  summeryResponse
 }
