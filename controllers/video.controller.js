@@ -577,7 +577,8 @@ const summeryResponse = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: completion.choices[0],
+      message: "Data send successfully",
+      content: completion.choices[0].message.content
     });
   } catch (error) {
     return res.status(500).json({
