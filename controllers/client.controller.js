@@ -330,7 +330,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         let finalProccessData = []
 
         videoQuestion.videoData.forEach((item) => {
-          const processedData = item.questions.map((question) => {
+          const processedData = item.questions ?  item.questions.map((question) => {
             const responses = {};
             question.answers.forEach((answer) => {
               responses[answer.answer] = 0;
@@ -344,7 +344,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
               skip: question.skip,
               noOfSkip: 0,
             };
-          });
+          }) : [];
 
           finalProccessData = finalProccessData.concat(processedData)
         });
