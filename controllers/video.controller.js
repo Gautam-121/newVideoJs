@@ -569,7 +569,9 @@ const summeryResponse = async (req, res, next) => {
       messages: [
         {
           role: "system",
-          content: `this is the data, I want to identify patterns, trends, and areas for improvement based on the responses. ${jsonString}`,
+          content: `Summarize the key insights, common themes, and important points from the following survey questions and answers related to a product demo. Focus on capturing the most relevant and frequently mentioned information across the responses, while omitting unnecessary details or redundancies.
+          Analyze and include the overall sentiment (positive, negative, or neutral) expressed in the responses to each question. If the survey includes numerical data, ratings, or quantitative feedback, incorporate relevant statistics or averages in the summary.
+          The goal is to provide a concise yet comprehensive overview of the survey data, highlighting both the qualitative feedback and quantitative evaluations. Present the summary in a structured format, using paragraphs or bullet points as appropriate. The length of the summary should be approximately 300-400 words. ${jsonString}`,
         },
       ],
       model: "gpt-3.5-turbo",
