@@ -35,6 +35,7 @@ const AppBranding = sequelize.define("AppBranding" , {
             }
         }
     },
+    url:DataTypes.STRING,
     coverImage:{
         type: DataTypes.STRING,
         allowNull: false,
@@ -49,7 +50,6 @@ const AppBranding = sequelize.define("AppBranding" , {
         allowNull: false,
         unique: true
     }
-
 })
 
 module.exports = AppBranding

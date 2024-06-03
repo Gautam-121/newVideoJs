@@ -8,6 +8,7 @@ const sendEmail = require("../utils/sendEmail.js")
 const { Op } = require('sequelize');
 const { isValidEmail } = require("../utils/validator.js");
 const { IsValidUUID } = require("../constants.js");
+const AppBranding = require("../models/adminAppBranding.models.js");
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
 
@@ -436,6 +437,29 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
     })
 })
 
+const getAppBrandingByClient = asyncHandler(async(req , res , next)=>{
+
+    if(!req.params.id){
+        return next(new ErrorHandler("Missing id" , 400))
+    }
+
+    if(!IsValidUUID(req.params.id)){
+        return next(new ErrorHandler("Must be valid UUID" , 40))
+    }
+
+    const appBranding = await AppBranding.findOne({where:{createdBy : req.params.id}})
+
+    if(!appBranding){
+        return next(new ErrorHandler(`appBranding not found with id ${req.params.id}`,404))
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: "Data Send Successfully",
+        data: appBranding
+    })
+})
+
 
 
 
@@ -445,5 +469,6 @@ module.exports = {
     storeFeedback,
     socialLogin,
     getFeedBack,
-    getVideoByClient
+    getVideoByClient,
+    getAppBrandingByClient
 }

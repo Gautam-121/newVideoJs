@@ -6,7 +6,8 @@ const {
     getAppBranding,
     updateAppBrandingDetails,
     updateCoverImage,
-    updateLogo
+    updateLogo,
+    getAppBrandingByClient
 } = require("../controllers/adminAppBranding.controller")
 const {
    uploadAdminConfig 
@@ -43,5 +44,6 @@ router.route("/logo/app-branding").patch(
     uploadAdminConfig.single("logo"),
     updateLogo
 ) 
+
 
 module.exports = router

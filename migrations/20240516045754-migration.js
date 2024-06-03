@@ -3,9 +3,8 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    queryInterface.addColumn("Videos" , "createdBy" , {
+    queryInterface.addColumn("AppBrandings" , "url" , {
       type: Sequelize.STRING,
-      allowNull: false,
     })
     /**
      * Add altering commands here.

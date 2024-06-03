@@ -1,23 +1,23 @@
 {
   "development": {
     "username": "postgres",
-    "password": "Gautam@12",
-    "database": "videoProject",
+    "password": "Password123",
+    "database": "videoCampaign",
     "host": "localhost",
     "dialect": "postgres"
   },
   "test": {
     "username": "postgres",
-    "password": "Gautam@12",
-    "database": "videoProject",
+    "password": "Password123",
+    "database": "videoCampaign",
     "host": "localhost",
     "dialect": "postgres"
   },
   "production": {
-    "username": "postgres",
-    "password": "Gautam@12",
-    "database": "videoProject",
-    "host": "localhost",
+    "username": "default",
+    "password": "LCdTrE3Bvw9x",
+    "database": "verceldb",
+    "host": "ep-raspy-credit-a425no7v.us-east-1.aws.neon.tech",
     "dialect": "postgres"
   }
 }

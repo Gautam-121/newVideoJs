@@ -1,7 +1,8 @@
 const AppBranding = require("../models/adminAppBranding.models")
 const ErrorHandler = require("../utils/errorHandler");
 const asyncHandler = require("../utils/asyncHandler")
-const fs = require("fs")
+const fs = require("fs");
+const { IsValidUUID } = require("../constants");
 
 
 const createdBranding = asyncHandler(async(req,res,next)=>{
@@ -198,6 +199,8 @@ const updateCoverImage  = asyncHandler(async(req , res , next)=>{
         message: "CoverImage updated successfully"
     })
 })
+
+
 
 module.exports = {
     createdBranding,
