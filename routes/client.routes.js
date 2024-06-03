@@ -25,7 +25,7 @@ router.route("/feedback/:videoId").get( verifyClientToken , getFeedBack )
 
 router.get("/getVideoById/:customerId/:videoId" , verifyClientToken , getVideoByClient )
 
-router.route("/app-branding/:id").get( verifyClientToken , getAppBrandingByClient)
+router.route("/app-branding/:id").get( getAppBrandingByClient )
 
 
 

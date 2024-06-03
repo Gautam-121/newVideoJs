@@ -1,9 +1,9 @@
 {
   "development": {
-    "username": "default",
-    "password": "LCdTrE3Bvw9x",
-    "database": "verceldb",
-    "host": "ep-raspy-credit-a425no7v.us-east-1.aws.neon.tech",
+    "username": "postgres",
+    "password": "Password123",
+    "database": "videoCampaign",
+    "host": "localhost",
     "dialect": "postgres"
   },
   "test": {
