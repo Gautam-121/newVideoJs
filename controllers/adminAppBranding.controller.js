@@ -140,9 +140,9 @@ const updateLogo = asyncHandler(async(req , res , next)=>{
         return next(new ErrorHandler("AppBranding not found" , 404))
     }
 
-    if(userBranding.logo){
-        fs.unlinkSync(`public/temp/admin/${userBranding.logo}`)
-    }
+    // if(userBranding.logo){
+    //     fs.unlinkSync(`public/temp/admin/${userBranding.logo}`)
+    // }
 
     await AppBranding.update(
         {
@@ -179,9 +179,9 @@ const updateCoverImage  = asyncHandler(async(req , res , next)=>{
         return next(new ErrorHandler("AppBranding not found" , 404))
     }
 
-    if(userBranding.coverImage){
-        fs.unlinkSync(`public/temp/admin/${userBranding.coverImage}`)
-    }
+    // if(userBranding.coverImage){
+    //     fs.unlinkSync(`public/temp/admin/${userBranding.coverImage}`)
+    // }
 
     await AppBranding.update(
         {
