@@ -18,7 +18,8 @@ const Client = sequelize.define("Client",{
     },
     otpExpire:{
         type: DataTypes.DATE
-    }
+    },
+    userId:DataTypes.STRING
 })
 
 Client.prototype.generateToken = async function(){

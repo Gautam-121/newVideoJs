@@ -6,7 +6,9 @@ const {
   socialLogin,
   getFeedBack,
   getVideoByClient,
-  getAppBrandingByClient
+  getAppBrandingByClient,
+  facebookDataDeletion,
+  deletionData
 } = require("../controllers/client.controller");
 const {
   verifyClientToken
@@ -26,6 +28,10 @@ router.route("/feedback/:videoId").get( verifyClientToken , getFeedBack )
 router.get("/getVideoById/:customerId/:videoId" , verifyClientToken , getVideoByClient )
 
 router.route("/app-branding/:id").get( getAppBrandingByClient )
+
+router.route("/facebook/deletion").post( facebookDataDeletion )
+
+router.route("/facebook/deletion/page").get( deletionData )
 
 
 

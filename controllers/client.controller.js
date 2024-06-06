@@ -9,6 +9,11 @@ const { Op } = require('sequelize');
 const { isValidEmail } = require("../utils/validator.js");
 const { IsValidUUID } = require("../constants.js");
 const AppBranding = require("../models/adminAppBranding.models.js");
+const DeletionRequest = require("../models/facebookDeletionRequest.model.js")
+const { sequelize } = require("../db/index.js")
+const { v4:UUIDV4 } = require("uuid")
+
+
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
 
@@ -186,7 +191,7 @@ const verifyOtp = asyncHandler(async(req,res,next)=>{
 
 const socialLogin = asyncHandler(async(req,res,next)=>{
 
-    const { email } = req.body
+    const { email , userId } = req.body
 
     if(!email){
         return next(
@@ -206,9 +211,17 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         )
     }
 
+    if(!userId){
+        return next(new ErrorHandler("userId is missing" , 400))
+    }
+
     const existingClient = await Client.findOne({
         where:{
-            email: email.trim()
+            email: email.trim(),
+            userId: userId
+        },
+        attributes:{
+            exclude:["otp" , "otpExpire"]
         }
     })
 
@@ -225,7 +238,8 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     }
 
     const user = await Client.create({
-        email
+        email,
+        userId
     })
 
     if(!user){
@@ -461,6 +475,128 @@ const getAppBrandingByClient = asyncHandler(async(req , res , next)=>{
 })
 
 
+function parseSignedRequest(signedRequest) {
+    const [encodedSig, payload] = signedRequest.split('.', 2);
+    const sig = base64UrlDecode(encodedSig);
+    const data = JSON.parse(base64UrlDecode(payload));
+
+    return data;
+}
+
+function base64UrlDecode(input) {
+    return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
+}
+
+const facebookDataDeletion = async (req, res) => {
+
+    const transaction = await sequelize.transaction();
+  
+    try {
+      const signedRequest = req.body.signed_request;
+      const data = parseSignedRequest(signedRequest);
+  
+      if (!data) {
+        return res.status(400).json({ error: 'Invalid signed request' });
+      }
+  
+      const userId = data?.user_id;
+  
+       // Check if there is an existing deletion request for the user
+       const existingDeletionRequest = await DeletionRequest.findOne({ 
+        where: { userId }, 
+        order: [['createdAt', 'DESC']], // Get the most recent request
+        transaction 
+    });
+
+    if (existingDeletionRequest) {
+        if (existingDeletionRequest.status === 'pending') {
+            // Return the URL and confirmation code of the existing request if pending
+            const statusUrl = `${process.env.BASE_URL}/deletion?id=${existingDeletionRequest.id}`;
+            const responseData = {
+                url: statusUrl,
+                confirmation_code: existingDeletionRequest.confirmationCode,
+            };
+            return res.json(responseData);
+        } else if (existingDeletionRequest.status === 'completed') {
+            // Inform the user that the deletion process has already been completed
+            return res.status(200).json({ message: 'Deletion process has already been completed' });
+        } else if (existingDeletionRequest.status === 'user_not_found') {
+            // Retry the deletion process for the user if user_not_found status
+            await DeletionRequest.destroy({where:{userId:userId}},{ transaction });
+            // continue with the deletion process
+        }
+    }
+
+     // Start data deletion for the user
+     const user = await Client.findOne({ where: { userId: userId } }, { transaction });
+
+      let status;
+      if (user) {
+        await Client.destroy({
+            where:{
+                userId:userId
+            }
+        },{transaction});
+        status = 'completed';
+      } else {
+        status = 'user_not_found';
+      }
+  
+      const confirmationCode = UUIDV4(); // Generate a unique code for the deletion request
+      const deleteDataCreation = await DeletionRequest.create({
+        userId,
+        confirmationCode,
+        status,
+      }, { transaction });
+  
+      await transaction.commit();
+  
+      const statusUrl = `${process.env.BASE_URL}/deletion?id=${deleteDataCreation.id}`; // URL to track the deletion
+  
+      const responseData = {
+        url: statusUrl,
+        confirmation_code: confirmationCode,
+      };
+  
+      res.json(responseData);
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error processing deletion request:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+const deletionData = async (req, res) => {
+    try {
+      const { id } = req.query;
+  
+      // Check if the deletion request ID is provided
+      if (!id) {
+        return res.status(400).json({ error: 'Deletion request ID is required' });
+      }
+  
+      const deletionRequest = await DeletionRequest.findOne({ where: { id } });
+  
+      // Check if the deletion request exists
+      if (!deletionRequest) {
+        return res.status(404).json({ error: 'Deletion request not found' });
+      }
+  
+      // Return the status of the deletion request
+      res.status(200).json({
+        status: deletionRequest.status, // 'pending', 'completed', 'user_not_found', etc.
+        confirmation_code: deletionRequest.confirmationCode,
+      });
+    } catch (error) {
+      // Handle any other errors
+      console.error('Error retrieving deletion data:', error);
+      res.status(500).json({ error: error || 'Internal server error' });
+    }
+  };
+
+
+
 
 
 module.exports = {
@@ -470,5 +606,7 @@ module.exports = {
     socialLogin,
     getFeedBack,
     getVideoByClient,
-    getAppBrandingByClient
+    getAppBrandingByClient,
+    facebookDataDeletion,
+    deletionData
 }

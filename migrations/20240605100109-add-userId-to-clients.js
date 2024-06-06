@@ -3,10 +3,9 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.addColumn("AppBrandings" , "url" , {
+    await queryInterface.addColumn("Clients" , "userId" , {
       type: Sequelize.STRING,
     })
-    
     /**
      * Add altering commands here.
      *
@@ -24,4 +23,3 @@ module.exports = {
      */
   }
 };
-
