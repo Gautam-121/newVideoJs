@@ -248,8 +248,8 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     console.log("Enter 5")
 
     const user = await Client.create({
-        email,
-        userId
+        email: email,
+        userId: userId
     })
 
     console.log("Enter 6")
