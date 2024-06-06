@@ -231,7 +231,11 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     if(existingClient){
 
+        console.log("Enter 3")
+
         const accessToken = await existingClient.generateToken()
+
+        console.log("Enter 4")
 
         return res.status(200).json({
             success: true,
@@ -241,12 +245,22 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         })
     }
 
+    console.log("Enter 5")
+
     const user = await Client.create({
         email,
         userId
     })
 
-    if(!user){
+    console.log("Enter 6")
+
+    const userCreate = await Client.findByPk(user.id,{
+        attributes:{
+            exclude:["otp" , "otpExpire"]
+        }
+    })
+
+    if(!userCreate){
         return next(
             new ErrorHandler(
                 "Something went wrong while registering the client",
@@ -255,12 +269,15 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         )
     }
 
+    console.log("Enter 7")
     const accessToken = await user.generateToken()
+
+    console.log("Enter8")
 
     return res.status(200).json({
         success: true,
         message: "Authentication successfull",
-        user,
+        userCreate,
         accessToken
     })
 })
