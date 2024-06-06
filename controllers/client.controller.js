@@ -326,8 +326,16 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     const isResponseAlreadyExist = await Feedback.findOne({
         where: {
             videoId: req.params.videoId,
-            clientId: req.user.id,
-        }
+        },
+        include:[
+            {
+                model: Client,
+                as: "clientRes",
+                where:{
+                    email: req.user.email
+                }
+            }
+        ]
     });
 
     if (isResponseAlreadyExist) {
@@ -488,84 +496,91 @@ function base64UrlDecode(input) {
 }
 
 const facebookDataDeletion = async (req, res) => {
+    
+  const transaction = await sequelize.transaction();
 
-    const transaction = await sequelize.transaction();
-  
-    try {
-      const signedRequest = req.body.signed_request;
-      const data = parseSignedRequest(signedRequest);
-  
-      if (!data) {
-        return res.status(400).json({ error: 'Invalid signed request' });
-      }
-  
-      const userId = data?.user_id;
-  
-       // Check if there is an existing deletion request for the user
-       const existingDeletionRequest = await DeletionRequest.findOne({ 
-        where: { userId }, 
-        order: [['createdAt', 'DESC']], // Get the most recent request
-        transaction 
+  try {
+    const signedRequest = req.body.signed_request;
+    const data = parseSignedRequest(signedRequest);
+
+    if (!data) {
+      return res.status(400).json({ error: "Invalid signed request" });
+    }
+
+    const userId = data?.user_id;
+
+    // Check if there is an existing deletion request for the user
+    const existingDeletionRequest = await DeletionRequest.findOne({
+      where: { userId },
+      order: [["createdAt", "DESC"]],
+      transaction,
     });
 
     if (existingDeletionRequest) {
-        if (existingDeletionRequest.status === 'pending') {
-            // Return the URL and confirmation code of the existing request if pending
-            const statusUrl = `${process.env.BASE_URL}/deletion?id=${existingDeletionRequest.id}`;
-            const responseData = {
-                url: statusUrl,
-                confirmation_code: existingDeletionRequest.confirmationCode,
-            };
-            return res.json(responseData);
-        } else if (existingDeletionRequest.status === 'completed') {
-            // Inform the user that the deletion process has already been completed
-            return res.status(200).json({ message: 'Deletion process has already been completed' });
-        } else if (existingDeletionRequest.status === 'user_not_found') {
-            // Retry the deletion process for the user if user_not_found status
-            await DeletionRequest.destroy({where:{userId:userId}},{ transaction });
-            // continue with the deletion process
+      if (existingDeletionRequest.status === "pending") {
+        // Return the URL and confirmation code of the existing request if pending
+        const statusUrl = `${process.env.BASE_URL}/deletion?id=${existingDeletionRequest.id}`;
+        const responseData = {
+          url: statusUrl,
+          confirmation_code: existingDeletionRequest.confirmationCode,
+        };
+        return res.json(responseData);
+      } else if (existingDeletionRequest.status === "completed") {
+        // Delete the user's data again if a completed deletion request exists
+        const user = await Client.findOne({ where: { userId }, transaction });
+        if (user) {
+
+          await Client.destroy({ where: { userId }, transaction });
+
+          const statusUrl = `${process.env.BASE_URL}/deletion?id=${existingDeletionRequest.id}`;
+          const responseData = {
+            url: statusUrl,
+            confirmation_code: existingDeletionRequest.confirmationCode,
+          };
+          return res.json(responseData);
         }
+
+      } else if (existingDeletionRequest.status === "user_not_found") {
+        // Retry the deletion process for the user if user_not_found status
+        await DeletionRequest.destroy({ where: { userId }, transaction });
+        // continue with the deletion process
+      }
     }
 
-     // Start data deletion for the user
-     const user = await Client.findOne({ where: { userId: userId } }, { transaction });
+    // Start data deletion for the user
+    const user = await Client.findOne({ where: { userId }, transaction });
+    let status;
+    if (user) {
+      await Client.destroy({ where: { userId }, transaction });
+      status = "completed";
+    } else {
+      status = "user_not_found";
+    }
 
-      let status;
-      if (user) {
-        await Client.destroy({
-            where:{
-                userId:userId
-            }
-        },{transaction});
-        status = 'completed';
-      } else {
-        status = 'user_not_found';
-      }
-  
-      const confirmationCode = UUIDV4(); // Generate a unique code for the deletion request
-      const deleteDataCreation = await DeletionRequest.create({
+    const confirmationCode = UUIDV4(); // Generate a unique code for the deletion request
+    const deleteDataCreation = await DeletionRequest.create(
+      {
         userId,
         confirmationCode,
         status,
-      }, { transaction });
-  
-      await transaction.commit();
-  
-      const statusUrl = `${process.env.BASE_URL}/deletion?id=${deleteDataCreation.id}`; // URL to track the deletion
-  
-      const responseData = {
-        url: statusUrl,
-        confirmation_code: confirmationCode,
-      };
-  
-      res.json(responseData);
+      },
+      { transaction }
+    );
 
-    } catch (error) {
-      await transaction.rollback();
-      console.error('Error processing deletion request:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-}
+    await transaction.commit();
+
+    const statusUrl = `${process.env.BASE_URL}/deletion?id=${deleteDataCreation.id}`; // URL to track the deletion
+    const responseData = {
+      url: statusUrl,
+      confirmation_code: confirmationCode,
+    };
+    res.json(responseData);
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error processing deletion request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 const deletionData = async (req, res) => {
     try {
