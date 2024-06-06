@@ -193,6 +193,8 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     const { email , userId } = req.body
 
+    console.log("Enter 1")
+
     if(!email){
         return next(
             new ErrorHandler(
@@ -214,6 +216,8 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     if(!userId){
         return next(new ErrorHandler("userId is missing" , 400))
     }
+
+    console.log("Enter 2")
 
     const existingClient = await Client.findOne({
         where:{
@@ -496,7 +500,7 @@ function base64UrlDecode(input) {
 }
 
 const facebookDataDeletion = async (req, res) => {
-    
+
   const transaction = await sequelize.transaction();
 
   try {
