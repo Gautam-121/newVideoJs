@@ -193,8 +193,6 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     const { email , userId } = req.body
 
-    console.log("Enter 1")
-
     if(!email){
         return next(
             new ErrorHandler(
@@ -213,16 +211,9 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         )
     }
 
-    if(!userId){
-        return next(new ErrorHandler("userId is missing" , 400))
-    }
-
-    console.log("Enter 2")
-
     const existingClient = await Client.findOne({
         where:{
             email: email.trim(),
-            userId: userId
         },
         attributes:{
             exclude:["otp" , "otpExpire"]
@@ -231,11 +222,12 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     if(existingClient){
 
-        console.log("Enter 3")
+        if(userId){
+            existingClient.userId = userId
+            await existingClient.save({validate: false})
+        }
 
         const accessToken = await existingClient.generateToken()
-
-        console.log("Enter 4")
 
         return res.status(200).json({
             success: true,
@@ -245,22 +237,11 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         })
     }
 
-    console.log("Enter 5")
+    const user = await Client.create({
+        email: email,
+        userId: userId
+    })
 
-    try {
-        const user = await Client.create({
-            email: email,
-            userId: userId
-        })
-    } catch (error) {
-        console.log(error)
-        return res.status(400).json({
-            success: false,
-            error: error
-        })
-    }
-
-    console.log("Enter 6")
 
     const userCreate = await Client.findByPk(user.id,{
         attributes:{
@@ -277,10 +258,7 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
         )
     }
 
-    console.log("Enter 7")
     const accessToken = await user.generateToken()
-
-    console.log("Enter8")
 
     return res.status(200).json({
         success: true,
@@ -553,22 +531,25 @@ const facebookDataDeletion = async (req, res) => {
           url: statusUrl,
           confirmation_code: existingDeletionRequest.confirmationCode,
         };
+
+        await transaction.commit();
         return res.json(responseData);
       } else if (existingDeletionRequest.status === "completed") {
         // Delete the user's data again if a completed deletion request exists
         const user = await Client.findOne({ where: { userId }, transaction });
+        console.log(user)
         if (user) {
 
-          await Client.destroy({ where: { userId }, transaction });
+          await Client.destroy({ where: { userId : userId }, transaction });
 
           const statusUrl = `${process.env.BASE_URL}/deletion?id=${existingDeletionRequest.id}`;
           const responseData = {
             url: statusUrl,
             confirmation_code: existingDeletionRequest.confirmationCode,
           };
+          await transaction.commit();
           return res.json(responseData);
         }
-
       } else if (existingDeletionRequest.status === "user_not_found") {
         // Retry the deletion process for the user if user_not_found status
         await DeletionRequest.destroy({ where: { userId }, transaction });
