@@ -247,10 +247,18 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     console.log("Enter 5")
 
-    const user = await Client.create({
-        email: email,
-        userId: userId
-    })
+    try {
+        const user = await Client.create({
+            email: email,
+            userId: userId
+        })
+    } catch (error) {
+        console.log(error)
+        return res.status(400).json({
+            success: false,
+            error: error
+        })
+    }
 
     console.log("Enter 6")
 
