@@ -6,7 +6,12 @@ const Analytic = require("../models/analytic.models.js")
 const OpenAI = require("openai");
 const { IsValidUUID } = require("../constants.js");
 const axios = require('axios');
-const { UPLOAD_VIDEO_URL , HSL_BASE_URL , UPLOAD_VIDEO_FOLDER } = require("../constants.js")
+const { 
+  UPLOAD_VIDEO_URL , 
+  HSL_BASE_URL , 
+  UPLOAD_VIDEO_FOLDER,
+  LOCAL_VIDEO_STORAGE_BASE_URL
+ } = require("../constants.js")
 
 const openAi = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -62,7 +67,7 @@ const uploadVideo = async (req, res, next) => {
     }
 
     const data = {
-      url: `${process.env.BASE_URL}/video/${videoFilePath.filename}`,
+      url: `${LOCAL_VIDEO_STORAGE_BASE_URL}/video/${videoFilePath.filename}`,
       filename: videoFilePath.filename,
       folder: UPLOAD_VIDEO_FOLDER,
     };
@@ -74,8 +79,6 @@ const uploadVideo = async (req, res, next) => {
         "Content-Type": "application/json",
       },
     });
-
-    console.log(uploadVideoFileOn5centCdn)
 
     const videoUrl = `${HSL_BASE_URL}/${UPLOAD_VIDEO_FOLDER}/${uploadVideoFileOn5centCdn.data.filename}/playlist.m3u8`;
 

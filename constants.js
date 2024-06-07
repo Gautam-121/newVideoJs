@@ -12,6 +12,8 @@ const UPLOAD_VIDEO_FOLDER = 'videoCampaign'
 
 const HSL_BASE_URL = "https://bgjokrb8n4my-hls-push.5centscdn.com"
 
+const LOCAL_VIDEO_STORAGE_BASE_URL = "https://videosurvey.xircular.io"
+
 const IsValidUUID = (id) => validator.isUUID(id) 
 
 module.exports = {
@@ -20,7 +22,8 @@ module.exports = {
     IsValidUUID,
     UPLOAD_VIDEO_URL,
     UPLOAD_VIDEO_FOLDER,
-    HSL_BASE_URL
+    HSL_BASE_URL,
+    LOCAL_VIDEO_STORAGE_BASE_URL
 }
 
 
