@@ -4,8 +4,9 @@ const ErrorHandler = require("../utils/errorHandler");
 const fs = require("fs")
 const Analytic = require("../models/analytic.models.js")
 const OpenAI = require("openai");
-const {deleteObjectsFromS3,uploadFileToS3} = require("../utils/aws.js");
 const { IsValidUUID } = require("../constants.js");
+const axios = require('axios');
+const { UPLOAD_VIDEO_URL , HSL_BASE_URL , UPLOAD_VIDEO_FOLDER } = require("../constants.js")
 
 const openAi = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -49,63 +50,53 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 })
 
 // Upload video file
-const uploadVideo = async(req , res , next)=>{
+const uploadVideo = async (req, res, next) => {
   try {
 
-    const videoFilePath = req?.file?.filename;
+    const videoFilePath = req?.file;
 
-  // const videoLocalFilePath = req?.files?.["video"]?.[0]?.path
-  // if(!videoLocalFilePath){
-  //   return next(
-  //     new ErrorHandler(
-  //       "Missing Video File , Provide video file",
-  //        400
-  //     )
-  //   )
-  // }
+    if (!videoFilePath) {
+      return next(
+        new ErrorHandler("Missing Video File , Provide video file", 400)
+      );
+    }
 
-  // const uploadFileOnAwsS3 = await uploadFileToS3(videoLocalFilePath)
+    const data = {
+      url: `${process.env.BASE_URL}/video/${videoFilePath.filename}`,
+      filename: videoFilePath.filename,
+      folder: UPLOAD_VIDEO_FOLDER,
+    };
 
-  // if(!uploadFileOnAwsS3){
-  //   return next(
-  //     new ErrorHandler(
-  //       "Something went wrong while uploding file on Aws s3 cloud",
-  //        500
-  //     )
-  //   )
-  // }
+    const uploadVideoFileOn5centCdn = await axios.post(UPLOAD_VIDEO_URL, data, {
+      headers: {
+        accept: "application/json",
+        "X-API-Key": process.env.CDN_API_KEY,
+        "Content-Type": "application/json",
+      },
+    });
 
-  // return res.status(201).json({
-  //   success: true,
-  //   message: "Video Uploaded Successfully",
-  //   videoUrl: uploadFileOnAwsS3
-  // })
+    console.log(uploadVideoFileOn5centCdn)
 
-  if(!videoFilePath){
-    return next(
-      new ErrorHandler(
-        "Missing Video File , Provide video file",
-         400
-      )
-    )
-  }
+    const videoUrl = `${HSL_BASE_URL}/${UPLOAD_VIDEO_FOLDER}/${uploadVideoFileOn5centCdn.data.filename}/playlist.m3u8`;
 
-  return res.status(201).json({
-    success:true,
-    message:"Video Uploaded Successfully",
-    videoUrl: videoFilePath
-  })
+    fs.unlinkSync(videoFilePath.path);
+
+    return res.status(201).json({
+      success: true,
+      message: "Video Uploaded Successfully",
+      videoUrl: videoUrl,
+    });
   } catch (error) {
-    if(req.file?.filename){
-      fs.unlinkSync(req.file.path)
+    if (req.file?.filename) {
+      fs.unlinkSync(req.file.path);
     }
 
     return res.status(500).json({
       success: false,
-      message: error.message || "Something went wrong while uploading video"
-    })
+      message: error.message || "Something went wrong while uploading video",
+    });
   }
-}
+};
 
 const uploadThumb= async(req , res , next)=>{
   try {

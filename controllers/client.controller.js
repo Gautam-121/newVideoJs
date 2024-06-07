@@ -13,6 +13,18 @@ const DeletionRequest = require("../models/facebookDeletionRequest.model.js")
 const { sequelize } = require("../db/index.js")
 const { v4:UUIDV4 } = require("uuid")
 
+// Helper function for decoded signRequest by facebook
+function parseSignedRequest(signedRequest) {
+    const [encodedSig, payload] = signedRequest.split('.', 2);
+    const sig = base64UrlDecode(encodedSig);
+    const data = JSON.parse(base64UrlDecode(payload));
+
+    return data;
+}
+
+function base64UrlDecode(input) {
+    return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
+}
 
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
@@ -489,18 +501,6 @@ const getAppBrandingByClient = asyncHandler(async(req , res , next)=>{
     })
 })
 
-
-function parseSignedRequest(signedRequest) {
-    const [encodedSig, payload] = signedRequest.split('.', 2);
-    const sig = base64UrlDecode(encodedSig);
-    const data = JSON.parse(base64UrlDecode(payload));
-
-    return data;
-}
-
-function base64UrlDecode(input) {
-    return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
-}
 
 const facebookDataDeletion = async (req, res) => {
 

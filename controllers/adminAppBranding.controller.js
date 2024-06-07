@@ -1,9 +1,6 @@
 const AppBranding = require("../models/adminAppBranding.models")
 const ErrorHandler = require("../utils/errorHandler");
 const asyncHandler = require("../utils/asyncHandler")
-const fs = require("fs");
-const { IsValidUUID } = require("../constants");
-
 
 const createdBranding = asyncHandler(async(req,res,next)=>{
 
@@ -140,10 +137,6 @@ const updateLogo = asyncHandler(async(req , res , next)=>{
         return next(new ErrorHandler("AppBranding not found" , 404))
     }
 
-    // if(userBranding.logo){
-    //     fs.unlinkSync(`public/temp/admin/${userBranding.logo}`)
-    // }
-
     await AppBranding.update(
         {
             logo: logoLocalPath
@@ -178,10 +171,6 @@ const updateCoverImage  = asyncHandler(async(req , res , next)=>{
     if(!userBranding){
         return next(new ErrorHandler("AppBranding not found" , 404))
     }
-
-    // if(userBranding.coverImage){
-    //     fs.unlinkSync(`public/temp/admin/${userBranding.coverImage}`)
-    // }
 
     await AppBranding.update(
         {

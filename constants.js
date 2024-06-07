@@ -4,13 +4,38 @@ const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
 
+const CDN_ZONEID = 3987
+
+const UPLOAD_VIDEO_URL = `https://api.5centscdn.com/v2/zones/vod/push/${CDN_ZONEID}/import`
+
+const UPLOAD_VIDEO_FOLDER = 'videoCampaign'
+
+const HSL_BASE_URL = "https://bgjokrb8n4my-hls-push.5centscdn.com"
+
 const IsValidUUID = (id) => validator.isUUID(id) 
 
 module.exports = {
     PASSWORD_REGEX,
     EMAIL_REGEX,
-    IsValidUUID
+    IsValidUUID,
+    UPLOAD_VIDEO_URL,
+    UPLOAD_VIDEO_FOLDER,
+    HSL_BASE_URL
 }
+
+
+/*
+    {
+      fieldname: 'music',
+      originalname: 'a-random-piece-of-cheese-please-125340.mp3',
+      encoding: '7bit',
+      mimetype: 'audio/mpeg',
+      destination: './public/temp',
+      filename: 'music-1717677853584.mp3',
+      path: 'public\\temp\\music-1717677853584.mp3',
+      size: 12572928
+}
+    */
 
 
 
