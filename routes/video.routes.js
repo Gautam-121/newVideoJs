@@ -15,7 +15,7 @@ const {
 const { uploadThumbnail , uploadVideos } = require("../middlewares/multer.middleware.js")
 const {verifyJWt} = require("../middlewares/auth.middleware.js")
 
-router.post("/upload/media"  ,  uploadVideos.single("video"), uploadVideo);
+router.post("/upload/media"   , verifyJWt ,  uploadVideos.single("video"), uploadVideo);
 
 router.post("/upload/thumbnail" , verifyJWt , uploadThumbnail.single("thumbnail") , uploadThumb)
 
