@@ -54,10 +54,13 @@ const createVideoData = asyncHandler(async (req, res, next) => {
   });
 })
 
-// Upload video file
+const UPLOAD_DELAY_MS = 5000; // 5-second delay to allow CDN processing
+
+// Function to delay execution
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 const uploadVideo = async (req, res, next) => {
   try {
-
     const videoFilePath = req?.file;
 
     if (!videoFilePath) {
@@ -79,27 +82,39 @@ const uploadVideo = async (req, res, next) => {
       },
     });
 
-    const verifyResponse = await axios.get(`https://api.5centscdn.com/v2/zones/vod/push/3987/filemanager/info?file=videoCampaign%2F${videoFilePath.filename}&media=1`,{
-      headers: {
-        accept: "application/json",
-        "X-API-Key": process.env.CDN_API_KEY,
-        "Content-Type": "application/json",
-      }
-    });
-    console.log(verifyResponse)
-    if (!verifyResponse.data.media) {
-      throw new Error('Failed to verify the uploaded video on CDN.');
-    }
-
+    console.log('Video uploaded to CDN, response:', uploadVideoFileOn5centCdn.data);
 
     // Construct the video URL from the CDN response
     const videoUrl = `${HSL_BASE_URL}/${UPLOAD_VIDEO_FOLDER}/${uploadVideoFileOn5centCdn.data.filename}/playlist.m3u8`;
 
-    // Safely delete the file from local storage after uploading to the CDN
-    console.log(videoFilePath)
+    console.log('Generated video URL:', videoUrl);
+
+    // Introduce a delay to allow the CDN to process the upload
+    console.log(`Waiting ${UPLOAD_DELAY_MS / 1000} seconds for CDN processing...`);
+    await delay(UPLOAD_DELAY_MS);
+
+    // Verify that the video exists on the CDN
+    const verifyUrl = `https://api.5centscdn.com/v2/zones/vod/push/3987/filemanager/info?file=videoCampaign%2F${videoFilePath.filename}&media=1`;
+    console.log(`Verifying the video exists on the CDN with URL: ${verifyUrl}`);
+    const verifyResponse = await axios.get(verifyUrl, {
+      headers: {
+        accept: "application/json",
+        "X-API-Key": process.env.CDN_API_KEY,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log('Verification response:', verifyResponse.data);
+    if (!verifyResponse.data.media) {
+      throw new Error('Failed to verify the uploaded video on CDN.');
+    }
+
+    // Safely delete the file from local storage after verifying upload to the CDN
+    console.log('Deleting local file:', videoFilePath.path);
     try {
       if (fs.existsSync(videoFilePath.path)) {
         fs.unlinkSync(videoFilePath.path);
+        console.log(`Successfully deleted local file: ${videoFilePath.path}`);
       }
     } catch (unlinkError) {
       console.error(`Failed to delete the local file: ${unlinkError.message}`);
@@ -112,10 +127,13 @@ const uploadVideo = async (req, res, next) => {
       videoUrl: videoUrl,
     });
   } catch (error) {
+    console.error('Error during video upload process:', error.message);
+
     // Handle errors and attempt to delete the local file if it exists
     if (req.file?.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
+        console.log(`Successfully deleted local file during error handling: ${req.file.path}`);
       } catch (unlinkError) {
         console.error(`Failed to delete the local file during error handling: ${unlinkError.message}`);
       }
@@ -127,6 +145,7 @@ const uploadVideo = async (req, res, next) => {
     });
   }
 };
+
 
 
 const uploadThumb= async(req , res , next)=>{
