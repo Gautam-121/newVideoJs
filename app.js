@@ -16,13 +16,6 @@ const uploadRouter = require("./routes/video.routes.js");
 const quetionRouter = require("./routes/questions.routes.js");
 const clientRouter = require("./routes/client.routes.js")
 
-  
-app.get("/",(req,res,next)=>{
-    return res.status(200).json({
-        success: true,
-        message: "Deployed Successfully"
-    })
-})
 
 app.use("/api/v1/video", uploadRouter);
 app.use("/api/v1/question", quetionRouter);

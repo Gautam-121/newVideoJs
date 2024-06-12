@@ -3,8 +3,9 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.addColumn("Clients" , "userId" , {
-      type: Sequelize.STRING,
+    await queryInterface.addColumn("Videos" , "isDeleted" , {
+      type: Sequelize.BOOLEAN,
+      defaultValue:false
     })
     /**
      * Add altering commands here.

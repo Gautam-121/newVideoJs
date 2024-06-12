@@ -57,13 +57,11 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 // Upload video file
 const uploadVideo = async (req, res, next) => {
   try {
-
+    
     const videoFilePath = req?.file;
 
     if (!videoFilePath) {
-      return next(
-        new ErrorHandler("Missing Video File , Provide video file", 400)
-      );
+      return next(new ErrorHandler("Missing Video File. Provide a video file.", 400));
     }
 
     const data = {
@@ -72,6 +70,7 @@ const uploadVideo = async (req, res, next) => {
       folder: UPLOAD_VIDEO_FOLDER,
     };
 
+    // Upload the video file to the CDN
     const uploadVideoFileOn5centCdn = await axios.post(UPLOAD_VIDEO_URL, data, {
       headers: {
         accept: "application/json",
@@ -80,9 +79,18 @@ const uploadVideo = async (req, res, next) => {
       },
     });
 
+    // Construct the video URL from the CDN response
     const videoUrl = `${HSL_BASE_URL}/${UPLOAD_VIDEO_FOLDER}/${uploadVideoFileOn5centCdn.data.filename}/playlist.m3u8`;
 
-    fs.unlinkSync(videoFilePath.path);
+    // Safely delete the file from local storage after uploading to the CDN
+    try {
+      if (fs.existsSync(videoFilePath.path)) {
+        fs.unlinkSync(videoFilePath.path);
+      }
+    } catch (unlinkError) {
+      console.error(`Failed to delete the local file: ${unlinkError.message}`);
+      return next(new ErrorHandler("Video uploaded but failed to delete the local file.", 500));
+    }
 
     return res.status(201).json({
       success: true,
@@ -90,16 +98,22 @@ const uploadVideo = async (req, res, next) => {
       videoUrl: videoUrl,
     });
   } catch (error) {
-    if (req.file?.filename) {
-      fs.unlinkSync(req.file.path);
+    // Handle errors and attempt to delete the local file if it exists
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error(`Failed to delete the local file during error handling: ${unlinkError.message}`);
+      }
     }
 
     return res.status(500).json({
       success: false,
-      message: error.message || "Something went wrong while uploading video",
+      message: error.message || "Something went wrong while uploading the video",
     });
   }
 };
+
 
 const uploadThumb= async(req , res , next)=>{
   try {
@@ -272,27 +286,27 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
   const data = JSON.parse(JSON.stringify(req.body))
 
-  let filterVideoFile = []
+  //let filterVideoFile = []
 
   // unlink all files from local
-  if (
-    video &&
-    video.videoFileUrl &&
-    video?.videoFileUrl.length > 0 &&
-    data?.videoFileUrl &&
-    Array.isArray(data?.videoFileUrl) && 
-    data?.videoFileUrl.length > 0
-  ) {
-    filterVideoFile = video?.videoFileUrl.filter(
-      (videoStr) => !data.videoFileUrl.includes(videoStr)
-    );
-  }
+  // if (
+  //   video &&
+  //   video.videoFileUrl &&
+  //   video?.videoFileUrl.length > 0 &&
+  //   data?.videoFileUrl &&
+  //   Array.isArray(data?.videoFileUrl) && 
+  //   data?.videoFileUrl.length > 0
+  // ) {
+  //   filterVideoFile = video?.videoFileUrl.filter(
+  //     (videoStr) => !data.videoFileUrl.includes(videoStr)
+  //   );
+  // }
 
-  if(filterVideoFile.length>0){
-    filterVideoFile.forEach(videoPath => {
-      fs.unlinkSync(`public/temp/${videoPath}`)
-    })
-  }
+  // if(filterVideoFile.length>0){
+  //   filterVideoFile.forEach(videoPath => {
+  //     fs.unlinkSync(`public/temp/${videoPath}`)
+  //   })
+  // }
 
   // if(filterVideoFile.length>0){
   //   const deleteFileOnAwsS3 = await deleteObjectsFromS3(filterVideoFile)
@@ -382,14 +396,19 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   //   }
   // }
 
-  const deleteVideo = await Video.destroy({
-    where: {
-      video_id: id,
-      createdBy: req.user?.obj?.id
+  const [deleteVideo] = await Video.update(
+    {
+      isDeleted: true
     },
-  });
+    {
+      where: {
+        video_id: id,
+        createdBy: req.user?.obj?.id
+      }
+    }
+  );
 
-  if (!deleteVideo) {
+  if (deleteVideo == 0) {
     return next(
       new ErrorHandler(
         "Something went wrong while deleting the video", 
@@ -399,16 +418,16 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   }
 
   // unlink all files from local
-  if (
-    video &&
-    video.videoFileUrl &&
-    Array.isArray(video?.videoFileUrl) &&
-    video?.videoFileUrl?.length > 0
-  ) {
-    video?.videoFileUrl.forEach((videoPath) => {
-      fs.unlinkSync(`public/temp/${videoPath}`);
-    });
-  }
+  // if (
+  //   video &&
+  //   video.videoFileUrl &&
+  //   Array.isArray(video?.videoFileUrl) &&
+  //   video?.videoFileUrl?.length > 0
+  // ) {
+  //   video?.videoFileUrl.forEach((videoPath) => {
+  //     fs.unlinkSync(`public/temp/${videoPath}`);
+  //   });
+  // }
 
   return res.status(200).json({
     success: true,
