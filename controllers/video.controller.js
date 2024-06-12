@@ -79,6 +79,13 @@ const uploadVideo = async (req, res, next) => {
       },
     });
 
+    const verifyResponse = await axios.get(`https://api.5centscdn.com/v2/zones/vod/push/3987/filemanager/info?file=videoCampaign%2F${videoFilePath.filename}&media=1`);
+    console.log(verifyResponse)
+    if (!verifyResponse.data.media) {
+      throw new Error('Failed to verify the uploaded video on CDN.');
+    }
+
+
     // Construct the video URL from the CDN response
     const videoUrl = `${HSL_BASE_URL}/${UPLOAD_VIDEO_FOLDER}/${uploadVideoFileOn5centCdn.data.filename}/playlist.m3u8`;
 
