@@ -57,7 +57,7 @@ const createVideoData = asyncHandler(async (req, res, next) => {
 // Upload video file
 const uploadVideo = async (req, res, next) => {
   try {
-    
+
     const videoFilePath = req?.file;
 
     if (!videoFilePath) {
@@ -83,6 +83,7 @@ const uploadVideo = async (req, res, next) => {
     const videoUrl = `${HSL_BASE_URL}/${UPLOAD_VIDEO_FOLDER}/${uploadVideoFileOn5centCdn.data.filename}/playlist.m3u8`;
 
     // Safely delete the file from local storage after uploading to the CDN
+    console.log(videoFilePath)
     try {
       if (fs.existsSync(videoFilePath.path)) {
         fs.unlinkSync(videoFilePath.path);
