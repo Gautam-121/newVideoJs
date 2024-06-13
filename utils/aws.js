@@ -3,6 +3,7 @@ const fs = require("fs")
 
 const client = new S3Client({
     region: process.env.AWS_REGION,
+    endpoint:"https://nyc3.digitaloceanspaces.com", // digital ocean api endpoint
     credentials:{
         accessKeyId: process.env.AWS_ACCESS_KEY,
         secretAccessKey: process.env.AWS_ACCESS_SECRET_KEY

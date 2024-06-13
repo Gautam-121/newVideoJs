@@ -12,6 +12,13 @@ const {
   UPLOAD_VIDEO_FOLDER,
   LOCAL_VIDEO_STORAGE_BASE_URL
  } = require("../constants.js")
+ const ffmpeg = require("fluent-ffmpeg");
+ const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
+ 
+ ffmpeg.setFfmpegPath(ffmpegPath);
+
+
+
 
 const openAi = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -66,6 +73,28 @@ const uploadVideo = async (req, res, next) => {
     if (!videoFilePath) {
       return next(new ErrorHandler("Missing Video File. Provide a video file.", 400));
     }
+
+    console.log(req.file.path)
+
+    const getAudioDuration = (filePath) => {
+      return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(filePath, (err, metadata) => {
+          if (err) {
+            console.error(`Error in ffprobe: ${err.message}`);
+            reject(err);
+          } else {
+            resolve(metadata.format.duration);
+          }
+        });
+      });
+    };
+
+    const getOutput = getAudioDuration(req.file.path)
+
+    return res.status(200).json({
+      success: false,
+      output: getOutput
+    })
 
     const data = {
       url: `${LOCAL_VIDEO_STORAGE_BASE_URL}/video/${videoFilePath.filename}`,
@@ -145,8 +174,6 @@ const uploadVideo = async (req, res, next) => {
     });
   }
 };
-
-
 
 const uploadThumb= async(req , res , next)=>{
   try {
