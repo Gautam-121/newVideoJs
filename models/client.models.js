@@ -52,7 +52,7 @@ Client.prototype.getOtp = function () {
     }
   
     this.otp = otp
-    this.otpExpire = Date.now() + 5 * 60 * 1000;
+    this.otpExpire = Date.now() + 10 * 60 * 1000;
   
     return otp;
 };

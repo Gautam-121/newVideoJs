@@ -7,7 +7,6 @@ const {
     updateAppBrandingDetails,
     updateCoverImage,
     updateLogo,
-    getAppBrandingByClient
 } = require("../controllers/adminAppBranding.controller")
 const {
    uploadAdminConfig 

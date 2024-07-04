@@ -1,6 +1,5 @@
 const {  DataTypes } = require('sequelize') 
 const {sequelize} = require("../db/index.js")
-const User = require("./user.models.js");
 const Feedback = require('./feedback.models.js');
 
 const Video = sequelize.define('Video', {
@@ -41,8 +40,16 @@ const Video = sequelize.define('Video', {
         type: DataTypes.JSONB,
         allowNull: false,
     },
+    videoLength:{
+        type:DataTypes.INTEGER,
+        allowNull: false
+    },
     isShared: {
         type: DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    isDeleted:{
+        type:DataTypes.BOOLEAN,
         defaultValue: false
     },
     createdBy:{

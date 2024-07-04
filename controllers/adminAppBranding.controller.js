@@ -9,7 +9,7 @@ const createdBranding = asyncHandler(async(req,res,next)=>{
     if(
         [brandName , description].some(field => field?.trim() === "")
     ){
-        return next(new ErrorHandler("All field is Required",400 ))
+        return next(new ErrorHandler("All field is Required",400))
     }
 
     const isAlreadyCreatedBranding = await AppBranding.findOne({
@@ -188,8 +188,6 @@ const updateCoverImage  = asyncHandler(async(req , res , next)=>{
         message: "CoverImage updated successfully"
     })
 })
-
-
 
 module.exports = {
     createdBranding,

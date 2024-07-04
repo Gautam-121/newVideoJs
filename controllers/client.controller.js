@@ -5,13 +5,18 @@ const ErrorHandler = require("../utils/errorHandler");
 const Video = require("../models/video.models.js")
 const Analytic = require("../models/analytic.models.js")
 const sendEmail = require("../utils/sendEmail.js")
-const { Op } = require('sequelize');
+const { Op, where } = require('sequelize');
 const { isValidEmail } = require("../utils/validator.js");
 const { IsValidUUID } = require("../constants.js");
 const AppBranding = require("../models/adminAppBranding.models.js");
 const DeletionRequest = require("../models/facebookDeletionRequest.model.js")
 const { sequelize } = require("../db/index.js")
-const { v4:UUIDV4 } = require("uuid")
+const { v4:UUIDV4 } = require("uuid");
+const PlanRestrict = require("../models/planrestrict.model.js");
+const ejs = require('ejs');
+const { default: axios } = require("axios");
+const path = require("path")
+
 
 // Helper function for decoded signRequest by facebook
 function parseSignedRequest(signedRequest) {
@@ -26,6 +31,54 @@ function base64UrlDecode(input) {
     return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
 }
 
+// Helper email function for sending limit riched notification
+const notifyUserApproachingVideoLimit = async (user, video) => {
+    try {
+      // Render the EJS template with dynamic data
+      const templatePath = path.join(__dirname, '../views/videoLimitNotification.ejs');
+      const limitReachedTemplate = await ejs.renderFile(templatePath, {
+        userName: user.email,
+        video: {
+            videoId: video.id,
+            title: video.title
+        },
+        upgradeLink: 'https://main--saas-subscription.netlify.app' // Replace with your actual upgrade link
+      });
+  
+      const options = {
+        email: user.email ,
+        subject: 'Approaching Video Response Limit',
+        message: limitReachedTemplate
+      }
+  
+      // Send the notification email
+      await sendEmail(options);
+    } catch (error) {
+      console.error('Error notifying user:', error);
+    }
+};
+
+// handler function to get User subscription
+const getUserSubscriptions = async (apiKey, userId, res) => {
+    try {
+
+      const SAAS_API_URL = "https://stream.xircular.io/api/v1/subscription/getSubscriptionByApiKey"
+      const subscriptionResponse = await axios.get(`${SAAS_API_URL}`, {
+        headers: {
+          'X-API-Key': apiKey || "835aa9fd7263034ee1ebb8d61a8d43f9757a0fe962408e512447002daafff6c4"
+        },
+      });
+      
+      if(!subscriptionResponse ||  subscriptionResponse.data.length == 0){
+        return false
+      }
+  
+      return subscriptionResponse.data[0] 
+    } catch (error) {
+      console.error('Error fetching user subscription:', error.message);
+      return false
+    }
+}
 
 const registerLogin = asyncHandler(async(req,res,next)=>{
 
@@ -57,16 +110,18 @@ const registerLogin = asyncHandler(async(req,res,next)=>{
     if(existingClient){
 
         const otp = existingClient.getOtp()
-        const message = `Thank you for using VideoFeedback App. To complete your registration process, please use the following One-Time Password (OTP):\n\nOTP: ${otp}\n\nThis OTP is valid for the next 10 minutes. For security reasons, please do not share this OTP with anyone.\n\nIf you did not initiate this request, please ignore this email.`
-
         await existingClient.save({validate: false})
+
+        // Render the EJS template
+        const templatePath = path.join(__dirname, '../views/otpNotifications.ejs');
+        const otpTemplate = await ejs.renderFile(templatePath, { otp: otp });
 
         try {
 
             await sendEmail({
                 email: existingClient.email,
                 subject: "Your One-Time Password (OTP) for VideoFeedback App",
-                message
+                message: otpTemplate
             })
 
             return res.status(200).json({
@@ -304,7 +359,7 @@ const getVideoByClient = asyncHandler(async (req , res , next)=>{
       }
     })
     
-    if (!videoData) {
+    if (!videoData || videoData.isDeleted) {
       return next(
         new ErrorHandler(
           "Video data not Found",
@@ -324,21 +379,25 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     
     const { response } = req.body;
 
+    // if(req.params.apiKey){
+    //     return next(new ErrorHandler("Misiing Api key", 400))
+    // }
+
     if (!req.params.videoId) {
-        return next(new ErrorHandler("videoId is missing"));
+        return next(new ErrorHandler("videoId is missing", 400));
     }
 
     if(!IsValidUUID(req.params.videoId)){
         return next(new ErrorHandler("Must be valid UUID", 400))
     }
 
-    if (!response || response.length == 0) {
+    if(!response || response.length == 0) {
         return next(new ErrorHandler("Provide all fields", 400));
     }
 
     const videoQuestion = await Video.findByPk(req.params.videoId);
 
-    if (!videoQuestion) {
+    if (!videoQuestion || videoQuestion.isDeleted) {
         return next(new ErrorHandler("Video Data not found", 404));
     }
 
@@ -414,29 +473,159 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         }
     });
 
-    await Analytic.update(
-        {
-            totalResponse: analyticResponse.totalResponse + 1,
-            analyticData: analyticResponse.analyticData
-        },
-        {
-            where: {
-                id: analyticResponse.id
-            }
+    const subscription =  getUserSubscriptions(req.params.apiKey , videoQuestion.createdBy , res)
+
+    if(!subscription) {
+        return next(new ErrorHandler("User subscription not found", 400));
+    }
+
+    // Convert video length from seconds to minutes
+    const videoLength = videoQuestion.videoLength / 60;
+
+    if(subscription.isTrialActive){
+        if(new Date()<= new Date(subscription.trialEndDate)){
+            return next(new ErrorHandler("Free trial has expired, pleased renew the plan", 400))
         }
-    );
 
-    const feedbackRes = await Feedback.create({
-        clientId: req.user.id,
-        videoId: req.params.videoId,
-        response: response,
-    });
+        const earlyExpiredPlan = await PlanRestrict.findOne({
+            where:{
+                videoId:req.params.videoId,
+            }
+        })
+     
+        if(!earlyExpiredPlan){
+            earlyExpiredPlan = await PlanRestrict.create({
+                videoId: req.params.videoId,
+                plans:[
+                    {
+                        planId:"Free Plan",
+                        totalUsedResponses:0,
+                        expired: subscription.trialEndDate
+                    }
+                ]
+            })
+        }
 
-    return res.status(200).json({
-        success: true,
-        message: "Feedback received successfully",
-        feedbackRes: feedbackRes,
-    });
+        if(earlyExpiredPlan.plan[0].totalUsedResponses >= Math.ceil(subscription.freeTrialFeature.totalResponse/videoLength)){
+            return next(new ErrorHandler("Plan limit has exceed , please renew your plan" , 400))
+        }
+
+        await Analytic.update(
+            {
+                totalResponse: analyticResponse.totalResponse + 1,
+                analyticData: analyticResponse.analyticData
+            },
+            {
+                where: {
+                    id: analyticResponse.id
+                }
+            }
+        );
+     
+        const feedbackRes = await Feedback.create({
+            clientId: req.user.id,
+            videoId: req.params.videoId,
+            response: response,
+        });
+     
+         // Update the total used responses count
+         earlyExpiredPlan.plan[0].totalUsedResponses += 1;
+         await earlyExpiredPlan.save({validate: false});
+     
+        // Check if this response brings the user close to their limit across all plans
+        if ((subscription.freeTrialFeature.totalResponse - earlyExpiredPlan.plan[0].totalUsedResponses) <= Math.ceil(((subscription.freeTrialFeature.totalResponse + 1)/videoLength) * 0.1)) { // 10% or less remaining
+            await notifyUserApproachingVideoLimit(subscription,videoQuestion );
+        }
+     
+        return res.status(200).json({
+            success: true,
+            message: "Feedback received successfully",
+            feedbackRes: feedbackRes,
+        });
+     
+    }
+
+    const currentDate = new Date();
+
+    // Get all active plans, sorted by expiration date (earliest first)
+    const activePlans = subscription.subscriptions
+    .filter(plan => new Date(plan.endDate) > currentDate)
+    .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+
+   if(activePlans.length === 0) {
+       return next(new ErrorHandler("No active plan found", 400));
+   }
+
+   const earlyExpiredPlan = await PlanRestrict.findOne({
+       where:{
+           videoId:req.params.videoId,
+       }
+   })
+
+   if(!earlyExpiredPlan){
+       earlyExpiredPlan = await PlanRestrict.create({
+           videoId: req.params.videoId,
+           plans:[
+               {
+                   planId:activePlans[0].id,
+                   totalUsedResponses:0,
+                   expired: activePlans[0].endDate
+               }
+           ]
+       })
+   }
+
+   const planExist = earlyExpiredPlan.plans.find(plan => plan.id === activePlans[0].id)
+
+   if(!planExist){
+       planExist = {
+           planId:activePlans[0].id,
+           totalUsedResponses:0,
+           expired: activePlans[0].endDate
+       }
+       const existingData = earlyExpiredPlan.plans.filter(plan => new Date() <= new Date(plan.expired));
+       existingData.push(planExist);
+
+       // Update the entry with the modified data
+       earlyExpiredPlan.plans = existingData;
+   }
+
+   if(activePlans.length == 1 && planExist.totalUsedResponses >= Math.ceil(activePlans[0].features.totalResponse/videoLength)){
+       return next(new ErrorHandler("Plan limit has exceed , please renew your plan" , 400))
+   }
+
+   await Analytic.update(
+       {
+           totalResponse: analyticResponse.totalResponse + 1,
+           analyticData: analyticResponse.analyticData
+       },
+       {
+           where: {
+               id: analyticResponse.id
+           }
+       }
+   );
+
+   const feedbackRes = await Feedback.create({
+       clientId: req.user.id,
+       videoId: req.params.videoId,
+       response: response,
+   });
+
+    // Update the total used responses count
+    planExist.totalUsedResponses += 1;
+    await earlyExpiredPlan.save({validate: false});
+
+   // Check if this response brings the user close to their limit across all plans
+   if (activePlans.length == 1 && (activePlans[0].features.totalResponse - planExist.totalUsedResponses) <= Math.ceil(((activePlans[0].features.totalResponse + 1)/videoLength) * 0.1)) { // 10% or less remaining
+       await notifyUserApproachingVideoLimit(subscription,videoQuestion );
+   }
+
+   return res.status(200).json({
+       success: true,
+       message: "Feedback received successfully",
+       feedbackRes: feedbackRes,
+   });
 });
 
 const getFeedBack = asyncHandler( async (req , res , next)=>{
@@ -453,6 +642,12 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
 
     if(!IsValidUUID(videoId)){
         return next(new ErrorHandler("Must be valid UUID", 400))
+    }
+
+    const videoExist = await Video.findByPk(videoId)
+
+    if(!videoExist || videoExist.isDeleted){
+        return next(new ErrorHandler(`Video not exist with id ${videoId}`, 400))
     }
 
     const feedbackExist = await Feedback.findOne({
@@ -500,7 +695,6 @@ const getAppBrandingByClient = asyncHandler(async(req , res , next)=>{
         data: appBranding
     })
 })
-
 
 const facebookDataDeletion = async (req, res) => {
 
@@ -618,10 +812,7 @@ const deletionData = async (req, res) => {
       console.error('Error retrieving deletion data:', error);
       res.status(500).json({ error: error || 'Internal server error' });
     }
-  };
-
-
-
+};
 
 
 module.exports = {

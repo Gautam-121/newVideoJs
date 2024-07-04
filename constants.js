@@ -12,6 +12,8 @@ const UPLOAD_VIDEO_FOLDER = 'videoCampaign'
 
 const HSL_BASE_URL = "https://bgjokrb8n4my-hls-push.5centscdn.com"
 
+const SUBSCRIPTION_API =  "https://stream.xircular.io/api/v1/subscription/getCustomerSubscription"
+
 const LOCAL_VIDEO_STORAGE_BASE_URL = "https://videosurvey.xircular.io"
 
 const IsValidUUID = (id) => validator.isUUID(id) 
@@ -23,7 +25,8 @@ module.exports = {
     UPLOAD_VIDEO_URL,
     UPLOAD_VIDEO_FOLDER,
     HSL_BASE_URL,
-    LOCAL_VIDEO_STORAGE_BASE_URL
+    LOCAL_VIDEO_STORAGE_BASE_URL,
+    SUBSCRIPTION_API
 }
 
 

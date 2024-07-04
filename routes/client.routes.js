@@ -21,7 +21,7 @@ router.route("/social/auth").post(socialLogin)
 
 router.route("/verify-otp").post(verifyOtp)
 
-router.route("/analytic/feedback/:videoId").post( verifyClientToken , storeFeedback)
+router.route("/analytic/feedback/:videoId/:apiKey").post( verifyClientToken , storeFeedback)
 
 router.route("/feedback/:videoId").get( verifyClientToken , getFeedBack )
 

@@ -10,12 +10,12 @@ const {
   updateVideoData,
   updateVideoShared,
   getAnalyticFeedbackData,
-  summeryResponse
+  summeryResponse,
 } = require("../controllers/video.controller.js");
 const { uploadThumbnail , uploadVideos } = require("../middlewares/multer.middleware.js")
 const {verifyJWt} = require("../middlewares/auth.middleware.js")
 
-router.post("/upload/media"   , verifyJWt ,  uploadVideos.single("video"), uploadVideo);
+router.post("/upload/media" ,  uploadVideos.single("video"), uploadVideo);
 
 router.post("/upload/thumbnail" , verifyJWt , uploadThumbnail.single("thumbnail") , uploadThumb)
 
@@ -34,6 +34,7 @@ router.put("/update/shared/:id", verifyJWt , updateVideoShared)
 router.route("/analytic/feedback/:videoId").get( verifyJWt , getAnalyticFeedbackData)
 
 router.route("/analytic/feedback/summary/:id").get( verifyJWt , summeryResponse )
+
 
 
 

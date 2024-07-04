@@ -10,22 +10,73 @@ const {
   UPLOAD_VIDEO_URL , 
   HSL_BASE_URL , 
   UPLOAD_VIDEO_FOLDER,
-  LOCAL_VIDEO_STORAGE_BASE_URL
+  LOCAL_VIDEO_STORAGE_BASE_URL,
+  SUBSCRIPTION_API
  } = require("../constants.js")
- const ffmpeg = require("fluent-ffmpeg");
- const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
  
- ffmpeg.setFfmpegPath(ffmpegPath);
-
-
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 
 const openAi = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
 
+// handler function to check plan expiry
+async function checkPlanExpired(bearerToken , res) {
+  try {
+
+    // Make a request to the subscription management server to fetch the user's subscription details
+    const subscriptionResponse = await axios.get(`${SUBSCRIPTION_API}`,{
+      headers: {
+        'Authorization': `${bearerToken}`
+      }
+    });
+
+    if(!subscriptionResponse ||  subscriptionResponse.length == 0){
+      return res.status(404).json({
+        success: false,
+        message: "Subscription plan not found"
+      })
+    }
+
+    if(subscriptionResponse.data[0].isTrialActive){
+      return subscriptionResponse.data[0] 
+    }
+
+    // Get all Active Plan
+    const activeSubscriptions = subscriptionResponse.data[0].subscriptions
+    .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
+
+    if(activeSubscriptions.length == 0){
+      res.status(400).json({
+        success: false,
+        message: "Please renew your subscription plan. Your current subscription is expired."
+      });      
+    }
+
+    // Get all Plan Hierarchy
+    const planHierarchy = [...new Set(activeSubscriptions.map(plan => plan.plan))];
+    return activeSubscriptions.reduce((highest, current) => 
+      planHierarchy.indexOf(current.plan) > planHierarchy.indexOf(highest.plan) ? current : highest
+    );
+    
+  } catch (error) {
+    console.error('Error checking subscription plan:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong while fetching the subscription"
+    });
+  }
+}
+
+const UPLOAD_DELAY_MS = 5000; // 5-second delay to allow CDN processing
+// Function to delay execution
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 // CREATING UPLOADMEDIA DATA
-const createVideoData = asyncHandler(async (req, res, next) => {
+const createVideoData = asyncHandler(async (req, res, next) => {5
 
   const data = JSON.parse(JSON.stringify(req.body));
 
@@ -61,40 +112,14 @@ const createVideoData = asyncHandler(async (req, res, next) => {
   });
 })
 
-const UPLOAD_DELAY_MS = 5000; // 5-second delay to allow CDN processing
-
-// Function to delay execution
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 const uploadVideo = async (req, res, next) => {
   try {
+
     const videoFilePath = req?.file;
 
     if (!videoFilePath) {
       return next(new ErrorHandler("Missing Video File. Provide a video file.", 400));
     }
-
-    console.log(req.file.path)
-
-    const getAudioDuration = (filePath) => {
-      return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(filePath, (err, metadata) => {
-          if (err) {
-            console.error(`Error in ffprobe: ${err.message}`);
-            reject(err);
-          } else {
-            resolve(metadata.format.duration);
-          }
-        });
-      });
-    };
-
-    const getOutput = getAudioDuration(req.file.path)
-
-    return res.status(200).json({
-      success: false,
-      output: getOutput
-    })
 
     const data = {
       url: `${LOCAL_VIDEO_STORAGE_BASE_URL}/video/${videoFilePath.filename}`,
@@ -135,6 +160,10 @@ const uploadVideo = async (req, res, next) => {
 
     console.log('Verification response:', verifyResponse.data);
     if (!verifyResponse.data.media) {
+      if (fs.existsSync(videoFilePath.path)) {
+        fs.unlinkSync(videoFilePath.path);
+        console.log(`Successfully deleted local file: ${videoFilePath.path}`);
+      }
       throw new Error('Failed to verify the uploaded video on CDN.');
     }
 
@@ -243,7 +272,8 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
 
   const videoResult = await Video.findAndCountAll({
     where: {
-      createdBy: req.user?.obj?.id
+      createdBy: req.user?.obj?.id,
+      isDeleted: false
     },
     limit: pageSize,
     offset: offset,
@@ -289,11 +319,11 @@ const getVideoById = asyncHandler(async (req, res, next) => {
   const videoData = await Video.findOne({
     where: { 
       video_id: id,
-      createdBy: req.user?.obj?.id
+      createdBy: req.user?.obj?.id,
     }
   })
   
-  if (!videoData) {
+  if (!videoData || videoData.isDeleted) {
     return next(
       new ErrorHandler(
         "Video data not Found",
@@ -335,7 +365,7 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
     }
   })
 
-  if(!video){
+  if(!video || video.isDeleted){
     return next(
       new ErrorHandler(
         "Video not found",
@@ -434,7 +464,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
     },
   });
 
-  if (!video) {
+  if (!video || video.isDeleted) {
     return next(
       new ErrorHandler(
         "VideoData not found", 
@@ -520,7 +550,7 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
     }
   })
 
-  if(!video){
+  if(!video || video.isDeleted){
     return next(
       new ErrorHandler(
         "Video not found",
@@ -575,13 +605,15 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
 
   const data = await Analytic.findOne({
     where:{
-      videoId: videoId
+      videoId: videoId,
+      isDeleted: false
     },
     include: [{
       model: Video,
       as: "videoRes",
       where: {
-        createdBy: req.user?.obj?.id
+        createdBy: req.user?.obj?.id,
+        isDeleted:false
       },
       attributes:[]
     }]
@@ -623,7 +655,8 @@ const summeryResponse = async (req, res, next) => {
         model: Video,
         as:"videoRes",
         where: {
-            createdBy: req.user?.obj?.id
+            createdBy: req.user?.obj?.id,
+            isDeleted:false
         },
         attributes:[]
     }],
@@ -663,6 +696,129 @@ const summeryResponse = async (req, res, next) => {
   }
 };
 
+// const responseData = async(req , res , next)=>{
+//   const request = require('request');
+
+// const credentials = {
+//     OS_PROJECT_DOMAIN_NAME: 'default',
+//     OS_USER_DOMAIN_NAME: 'Default',
+//     OS_PROJECT_NAME: 'bgjokrb8n4my',
+//     OS_USERNAME: 'maheshm_6698_push_3987',
+//     OS_PASSWORD: 'd306888862',
+//     OS_AUTH_URL: 'https://controller.5centscdn.com/v3/'
+//   };
+
+// let authToken = "gAAAAABmb8YD58thNbhJdxmR-K0MNTkbKEsyfde0Wk9zYqr2DfbEeWeSfDvBfTfza8wE-Jrv8Cqgp2XPKFZu1yuMMCWwOES0SumZgIQp02sTUmQHBr6e5U9dHESFPWX07qDRlVK6KtTlx4sAG9EBSZo0J0zuOV1FPIWx_cFPYuPKD1YtaxPlIkg";
+// let storageUrl = "http://controller.cdnized.com:8081/v1/AUTH_79b88a17bf5049c6b0d632cfe21ad880";
+
+// const authPayload = {
+//     auth: {
+//       identity: {
+//         methods: ['password'],
+//         password: {
+//           user: {
+//             domain: { name: credentials.OS_USER_DOMAIN_NAME },
+//             name: credentials.OS_USERNAME,
+//             password: credentials.OS_PASSWORD
+//           }
+//         }
+//       },
+//       scope: {
+//         project: {
+//           domain: { name: credentials.OS_PROJECT_DOMAIN_NAME },
+//           name: credentials.OS_PROJECT_NAME
+//         }
+//       }
+//     }
+//   };
+
+//   const requestOptions = {
+//     url: `${credentials.OS_AUTH_URL}/auth/tokens`,
+//     method: 'POST',
+//     headers: {
+//       'Content-Type': 'application/json'
+//     },
+//     body: JSON.stringify(authPayload)
+//   };
+
+// const generateToken = async () => {
+//   try {
+//     // Send the authentication request
+//     const response = await new Promise((resolve, reject) => {
+//       request(requestOptions, (error, response, body) => {
+//         if (error) {
+//           reject(error);
+//         } else {
+//             console.log(response)
+//           resolve(response);
+//         }
+//       });
+//     });
+
+//     const responseData = JSON.parse(response.body)
+//     console.log("response" , responseData)
+//     authToken = response.headers['x-subject-token'];
+//     storageUrl = responseData.token.catalog.find(service => service.type === 'object-store').endpoints[0].url;
+
+//     console.log("authToken" , authToken)
+//     console.log("storageUrl" , storageUrl)
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Data send successfully",
+//       data: responseData
+//     })
+
+//     // Update or create a new Credential instance
+//     const [credential, created] = await Credential.findOrCreate({
+//       where: {},
+//       defaults: { token: authToken, storageUrl: storageUrl }
+//     });
+
+//     if (!created) {
+//       credential.token = authToken;
+//       credential.storageUrl = storageUrl;
+//       await credential.save();
+//     }
+
+//     console.log('Auth Token:', authToken);
+//     console.log('Storage URL:', storageUrl);
+//     console.log(`Token and storage URL ${created ? 'created' : 'updated'} in database`);
+//   } catch (error) {
+//     console.error('Error:', error);
+//   }
+// };
+
+// // Generate the initial token and store it in the database
+// generateToken();
+
+// // Regenerate the token and update it in the database every 23 hours (23 * 60 * 60 * 1000 milliseconds)
+// setInterval(generateToken, 23 * 60 * 60 * 1000);
+// }
+
+// const deleteFileFromCDN = async (req,res,next) => {
+//   try {
+
+//     const fileUrl = "https://your-cdn-url.com/path/to/your/file"
+//     const response = await axios.delete('https://api.5centscdn.com/v2/zones/vod/push/3987/delete', {
+//       headers: {
+//         accept: "application/json",
+//         "X-API-Key": process.env.CDN_API_KEY,
+//       },
+//       data: {
+//         url: fileUrl
+//       }
+//     });
+
+//     if (response.status === 200) {
+//       console.log('File deleted successfully');
+//     } else {
+//       console.log('Failed to delete file:', response.status, response.statusText);
+//     }
+//   } catch (error) {
+//     console.error('Error deleting file:', error.message);
+//   }
+// };
 
 module.exports = { 
   uploadVideo, 
@@ -674,5 +830,5 @@ module.exports = {
   updateVideoShared,
   getAnalyticFeedbackData,
   uploadThumb,
-  summeryResponse
+  summeryResponse,
 }
