@@ -89,6 +89,15 @@ const createVideoData = asyncHandler(async (req, res, next) => {5
     )
   }
 
+  if(!data.videoLength || typeof data.videoLength !== "number"){
+    return next(
+      new ErrorHandler(
+        "VideoLength is required and must be number",
+         400
+      )
+    )
+  }
+
   const video = await Video.create({
     ...data,
     createdBy: req.user?.obj?.id
