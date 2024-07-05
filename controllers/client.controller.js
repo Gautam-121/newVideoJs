@@ -483,11 +483,11 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     const videoLength = videoQuestion.videoLength / 60;
 
     if(subscription.isTrialActive){
-        if(new Date()<= new Date(subscription.trialEndDate)){
+        if(new Date() > new Date(subscription.trialEndDate)){
             return next(new ErrorHandler("Free trial has expired, pleased renew the plan", 400))
         }
 
-        const earlyExpiredPlan = await PlanRestrict.findOne({
+        let earlyExpiredPlan = await PlanRestrict.findOne({
             where:{
                 videoId:req.params.videoId,
             }
@@ -506,7 +506,11 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
             })
         }
 
-        if(earlyExpiredPlan.plan[0].totalUsedResponses >= Math.ceil(subscription.freeTrialFeature.totalResponse/videoLength)){
+        console.log(earlyExpiredPlan)
+        console.log("VideoLength" , videoLength)
+        console.log(earlyExpiredPlan.plans[0].totalUsedResponses >= Math.ceil(subscription.freeTrialFeature.totalResponse/videoLength))
+
+        if(earlyExpiredPlan.plans[0].totalUsedResponses >= Math.ceil(subscription.freeTrialFeature.totalResponse/videoLength)){
             return next(new ErrorHandler("Plan limit has exceed , please renew your plan" , 400))
         }
 
@@ -529,11 +533,20 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         });
      
          // Update the total used responses count
-         earlyExpiredPlan.plan[0].totalUsedResponses += 1;
+         earlyExpiredPlan.plans[0].totalUsedResponses += 1;
+         plan.changed('plans', true);
          await earlyExpiredPlan.save({validate: false});
+
+         let newData = await PlanRestrict.findOne({
+            where:{
+                videoId:req.params.videoId,
+            }
+        })
+
+        console.log("newData" , newData.plans)
      
         // Check if this response brings the user close to their limit across all plans
-        if ((subscription.freeTrialFeature.totalResponse - earlyExpiredPlan.plan[0].totalUsedResponses) <= Math.ceil(((subscription.freeTrialFeature.totalResponse + 1)/videoLength) * 0.1)) { // 10% or less remaining
+        if ((Math.ceil(subscription.freeTrialFeature.totalResponse/videoLength) - earlyExpiredPlan.plans[0].totalUsedResponses) <= Math.ceil(((subscription.freeTrialFeature.totalResponse + 1)/videoLength) * 0.1)) { // 10% or less remaining
             await notifyUserApproachingVideoLimit(subscription,videoQuestion );
         }
      
