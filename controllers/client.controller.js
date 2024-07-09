@@ -664,6 +664,8 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
             }
         );
 
+        console.log(earlyExpiredPlan.plans)
+
         const feedbackRes = await Feedback.create({
             clientId: req.user.id,
             videoId: req.params.videoId,
