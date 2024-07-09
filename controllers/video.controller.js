@@ -616,7 +616,6 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
   const data = await Analytic.findOne({
     where:{
       videoId: videoId,
-      isDeleted: false
     },
     include: [{
       model: Video,
@@ -624,8 +623,7 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
       where: {
         createdBy: req.user?.obj?.id,
         isDeleted:false
-      },
-      attributes:[]
+      }
     }]
   });
   
@@ -668,7 +666,9 @@ const summeryResponse = async (req, res, next) => {
             createdBy: req.user?.obj?.id,
             isDeleted:false
         },
-        attributes:[]
+        attributes:{
+          include: ["title"]
+        }
     }],
       attributes:{
         exclude: ["id","createdAt","updatedAt","videoId"]
