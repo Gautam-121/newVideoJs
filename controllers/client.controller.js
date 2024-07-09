@@ -381,21 +381,25 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         const { response } = req.body;
 
         if (!req.params.videoId) {
-            throw new ErrorHandler("videoId is missing", 400);
+            return next(new ErrorHandler("videoId is missing", 400));
+        }
+
+        if(req.params.apiKey){
+            return next(new ErrorHandler("Misiing Api key", 400))
         }
 
         if (!IsValidUUID(req.params.videoId)) {
-            throw new ErrorHandler("Must be valid UUID", 400);
+            return next(new ErrorHandler("Must be valid UUID", 400))
         }
 
         if (!response || response.length == 0) {
-            throw new ErrorHandler("Provide all fields", 400);
+            return next(new ErrorHandler("Provide all fields", 400))
         }
 
         const videoQuestion = await Video.findByPk(req.params.videoId, { transaction });
 
         if (!videoQuestion || videoQuestion.isDeleted) {
-            throw new ErrorHandler("Video Data not found", 404);
+            return next(new ErrorHandler("Video Data not found", 404))
         }
 
         const isResponseAlreadyExist = await Feedback.findOne({
@@ -415,7 +419,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         });
 
         if (isResponseAlreadyExist) {
-            throw new ErrorHandler("Response already stored", 409);
+            return next(new ErrorHandler("Response already stored", 409))
         }
 
         let analyticResponse = await Analytic.findOne({
@@ -472,10 +476,10 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         });
 
         // fetch User subscription
-        const subscription = getUserSubscriptions(req.params.apiKey, videoQuestion.createdBy, res);
+        const subscription = await getUserSubscriptions(req.params.apiKey, videoQuestion.createdBy, res);
         console.log("subscription" , subscription)
         if (!subscription) {
-            throw new ErrorHandler("User subscription not found", 400);
+            return next(new ErrorHandler("User subscription not found", 400))
         }
 
         console.log("videoQuestion" , videoQuestion)
@@ -485,7 +489,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         if (subscription.isTrialActive) {
             console.log("Enter inside trial period")
             if (new Date() > new Date(subscription.trialEndDate)) {
-                throw new ErrorHandler("Free trial has expired, please renew the plan", 400);
+                return next(new ErrorHandler("Free trial has expired, please renew the plan", 400));
             }
 
             let earlyExpiredPlan = await PlanRestrict.findOne({
@@ -511,7 +515,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
 
             // Checked plan has riched limit
             if (earlyExpiredPlan.plans[0].totalUsedResponses >= Math.ceil(subscription.freeTrialFeature.totalResponse / videoLength)) {
-                throw new ErrorHandler("Plan limit has exceeded, please renew your plan", 400);
+                return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
             }
 
             await Analytic.update(
@@ -552,7 +556,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         }
 
         if (subscription?.subscriptions.length == 0) {
-            throw new ErrorHandler("No active plan found", 400);
+            return next(new ErrorHandler("No active plan found", 400))
         }
 
         const currentDate = new Date();
@@ -561,7 +565,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
             .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
 
         if (activePlans.length === 0) {
-            throw new ErrorHandler("No active plan found", 400);
+            return next(new ErrorHandler("No active plan found", 400))
         }
 
         let earlyExpiredPlan = await PlanRestrict.findOne({
@@ -584,19 +588,36 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
                 ]
             }, { transaction });
         }
-
-        const findFirstValidPlan = (earlyExpiredPlan, activePlans, videoLength) => {
-            for (let i = 0; i < activePlans.length; i++) {
-                const planExist = earlyExpiredPlan.plans.find(plan => plan.planId === activePlans[i].id);
-                if (planExist && planExist.totalUsedResponses < Math.ceil(planExist.maxLimit / videoLength)) {
-                    return planExist;
-                }
-            }
-            return null;
-        };
+    
+    earlyExpiredPlan.plans.sort((a, b) => new Date(a.expired) - new Date(b.expired));
+    const findFirstValidPlan = (earlyExpiredPlan, activePlans, videoLength) => {
+      const isLimitReached = false;
+      for (let i = 0; i < activePlans.length; i++) {
+        const planExist = earlyExpiredPlan.plans.find(
+          (plan) => plan.planId === activePlans[i].id
+        );
+        const hasReachedTheLimit = planExist
+          ? planExist.totalUsedResponse >=
+            Math.ceil(planExist.maxLimit / videoLength)
+          : null;
+        if (planExist && !hasReachedTheLimit) {
+          return planExist;
+        } else if (!planExist) {
+          isLimitReached = true;
+          return null;
+        }
+      }
+      if (isLimitReached) {
+        return "Limit Reached";
+      }
+    };
 
         // find first valid plan
         let planExist = findFirstValidPlan(earlyExpiredPlan, activePlans, videoLength);
+
+        if(planExist == "Limit Reached"){
+            return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
+        }
 
         if (!planExist) {
             planExist = {
@@ -613,7 +634,8 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         // From all avtive subscription plan filter those have not riched the limit
         const validActivePlans = activePlans.filter(plan => {
             const earlyPlan = earlyExpiredPlan.plans.find(p => p.planId === plan.id);
-            return earlyPlan && earlyPlan.totalUsedResponses < Math.ceil(earlyPlan.maxLimit / videoLength);
+            const hasReachedTheLimit = earlyPlan ? earlyPlan.totalUsedResponse >= Math.ceil(earlyPlan.maxLimit / videoLength) : null
+            return earlyPlan && !hasReachedTheLimit
         });
 
         if (validActivePlans.length === 1) {
@@ -621,10 +643,10 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
             const earlyPlan = earlyExpiredPlan.plans.find(p => p.planId === plan.id);
 
             if (earlyPlan.totalUsedResponses >= Math.ceil(plan.features.totalResponse / videoLength)) {
-                throw new ErrorHandler("Plan limit has exceeded, please renew your plan", 400);
+                return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
             }
 
-            if ((Math.ceil(plan.features.totalResponse / videoLength) - earlyPlan.totalUsedResponses) <= Math.ceil((plan.features.totalResponse / videoLength) * 0.1)) {
+            if ((Math.ceil(plan.features.totalResponse / videoLength) - earlyPlan.totalUsedResponses) <= Math.ceil((plan.features.totalResponse + 1/ videoLength) * 0.1)) {
                 await notifyUserApproachingVideoLimit(subscription, videoQuestion);
             }
         }
