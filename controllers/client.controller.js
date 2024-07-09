@@ -473,15 +473,17 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
 
         // fetch User subscription
         const subscription = getUserSubscriptions(req.params.apiKey, videoQuestion.createdBy, res);
-
+        console.log("subscription" , subscription)
         if (!subscription) {
             throw new ErrorHandler("User subscription not found", 400);
         }
 
+        console.log("videoQuestion" , videoQuestion)
         const videoLength = videoQuestion.videoLength / 60;
 
         // Subscription under trial-period
         if (subscription.isTrialActive) {
+            console.log("Enter inside trial period")
             if (new Date() > new Date(subscription.trialEndDate)) {
                 throw new ErrorHandler("Free trial has expired, please renew the plan", 400);
             }
