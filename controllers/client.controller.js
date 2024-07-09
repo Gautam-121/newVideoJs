@@ -597,13 +597,12 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
           (plan) => plan.planId === activePlans[i].id
         );
         const hasReachedTheLimit = planExist
-          ? planExist.totalUsedResponse >=
+          ? planExist.totalUsedResponses >=
             Math.ceil(planExist.maxLimit / videoLength)
           : null;
         if (planExist && !hasReachedTheLimit) {
           return planExist;
         } else if (!planExist) {
-          isLimitReached = true;
           return null;
         }
       }
@@ -634,7 +633,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         // From all avtive subscription plan filter those have not riched the limit
         const validActivePlans = activePlans.filter(plan => {
             const earlyPlan = earlyExpiredPlan.plans.find(p => p.planId === plan.id);
-            const hasReachedTheLimit = earlyPlan ? earlyPlan.totalUsedResponse >= Math.ceil(earlyPlan.maxLimit / videoLength) : null
+            const hasReachedTheLimit = earlyPlan ? earlyPlan.totalUsedResponses >= Math.ceil(earlyPlan.maxLimit / videoLength) : null
             return earlyPlan && !hasReachedTheLimit
         });
 
