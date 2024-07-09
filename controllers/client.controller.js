@@ -591,7 +591,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     
     earlyExpiredPlan.plans.sort((a, b) => new Date(a.expired) - new Date(b.expired));
     const findFirstValidPlan = (earlyExpiredPlan, activePlans, videoLength) => {
-      const isLimitReached = false;
+      let isLimitReached = false;
       for (let i = 0; i < activePlans.length; i++) {
         const planExist = earlyExpiredPlan.plans.find(
           (plan) => plan.planId === activePlans[i].id
@@ -664,7 +664,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
             }
         );
 
-        console.log(earlyExpiredPlan.plans)
+        console.log("before all plans" , earlyExpiredPlan.plans)
 
         const feedbackRes = await Feedback.create({
             clientId: req.user.id,
@@ -675,6 +675,8 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         planExist.totalUsedResponses += 1;
         earlyExpiredPlan.changed("plans", true);
         await earlyExpiredPlan.save({ validate: false, transaction });
+
+        console.log("After increament" , earlyExpiredPlan.plans)
 
         await transaction.commit();
 
