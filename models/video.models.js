@@ -64,7 +64,7 @@ Video.hasMany(Feedback, { // Assuming each video can have multiple feedbacks
     as: "feedback"
 });
 
-Video.hasMany(PlanRestrict, { as: 'plans' });
+// Video.hasMany(PlanRestrict, { as: 'plans' });
 
 
 
