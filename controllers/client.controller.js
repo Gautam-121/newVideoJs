@@ -378,310 +378,405 @@ const getVideoByClient = asyncHandler(async (req , res , next)=>{
 const storeFeedback = asyncHandler(async (req, res, next) => {
     const transaction = await sequelize.transaction();
     try {
-        const { response } = req.body;
+      const { response } = req.body;
 
-        if (!req.params.videoId) {
-            return next(new ErrorHandler("videoId is missing", 400));
-        }
+      if (!req.params.videoId) {
+        return next(new ErrorHandler("videoId is missing", 400));
+      }
 
-        if(!req.params.apiKey){
-            return next(new ErrorHandler("Misiing Api key", 400))
-        }
+      if (!req.params.apiKey) {
+        return next(new ErrorHandler("Misiing Api key", 400));
+      }
 
-        if (!IsValidUUID(req.params.videoId)) {
-            return next(new ErrorHandler("Must be valid UUID", 400))
-        }
+      if (!IsValidUUID(req.params.videoId)) {
+        return next(new ErrorHandler("Must be valid UUID", 400));
+      }
 
-        if (!response || response.length == 0) {
-            return next(new ErrorHandler("Provide all fields", 400))
-        }
+      if (!response || response.length == 0) {
+        return next(new ErrorHandler("Provide all fields", 400));
+      }
 
-        const videoQuestion = await Video.findByPk(req.params.videoId, { transaction });
+      const videoQuestion = await Video.findByPk(req.params.videoId, {
+        transaction,
+      });
 
-        if (!videoQuestion || videoQuestion.isDeleted) {
-            return next(new ErrorHandler("Video Data not found", 404))
-        }
+      if (!videoQuestion || videoQuestion.isDeleted) {
+        return next(new ErrorHandler("Video Data not found", 404));
+      }
 
-        const isResponseAlreadyExist = await Feedback.findOne({
+      const isResponseAlreadyExist = await Feedback.findOne({
+        where: {
+          videoId: req.params.videoId,
+        },
+        include: [
+          {
+            model: Client,
+            as: "clientRes",
             where: {
-                videoId: req.params.videoId,
+              email: req.user.email,
             },
-            include: [
-                {
-                    model: Client,
-                    as: "clientRes",
-                    where: {
-                        email: req.user.email
-                    }
-                }
-            ],
-            transaction
+          },
+        ],
+        transaction,
+      });
+
+      if (isResponseAlreadyExist) {
+        return next(new ErrorHandler("Response already stored", 409));
+      }
+
+      let analyticResponse = await Analytic.findOne({
+        where: {
+          videoId: req.params.videoId,
+        },
+        transaction,
+      });
+
+      if (!analyticResponse) {
+        let finalProccessData = [];
+
+        videoQuestion.videoData.forEach((item) => {
+          const processedData = item.questions
+            ? item.questions.map((question) => {
+                const responses = {};
+                question.answers.forEach((answer) => {
+                  responses[answer.answer] = 0;
+                });
+
+                return {
+                  id: question.id,
+                  question: question.question,
+                  responses: responses,
+                  multiple: question.multiple,
+                  skip: question.skip,
+                  noOfSkip: 0,
+                };
+              })
+            : [];
+
+          finalProccessData = finalProccessData.concat(processedData);
         });
 
-        if (isResponseAlreadyExist) {
-            return next(new ErrorHandler("Response already stored", 409))
-        }
+        analyticResponse = await Analytic.create(
+          {
+            videoId: req.params.videoId,
+            analyticData: finalProccessData,
+            totalResponse: 0, // Changed to 0 since we will increment it later
+          },
+          { transaction }
+        );
+      }
 
-        let analyticResponse = await Analytic.findOne({
-            where: {
-                videoId: req.params.videoId,
-            },
-            transaction
-        });
+      response.forEach((res) => {
+        const questionToUpdate = analyticResponse.analyticData.find(
+          (item) => item.id === res.id
+        );
 
-        if (!analyticResponse) {
-            let finalProccessData = []
-
-            videoQuestion.videoData.forEach((item) => {
-                const processedData = item.questions ? item.questions.map((question) => {
-                    const responses = {};
-                    question.answers.forEach((answer) => {
-                        responses[answer.answer] = 0;
-                    });
-
-                    return {
-                        id: question.id,
-                        question: question.question,
-                        responses: responses,
-                        multiple: question.multiple,
-                        skip: question.skip,
-                        noOfSkip: 0,
-                    };
-                }) : [];
-
-                finalProccessData = finalProccessData.concat(processedData);
+        if (questionToUpdate) {
+          if (res.skip) {
+            questionToUpdate.noOfSkip++;
+          } else {
+            res.ans.forEach((answer) => {
+              if (questionToUpdate.responses.hasOwnProperty(answer)) {
+                questionToUpdate.responses[answer]++;
+              }
             });
-
-            analyticResponse = await Analytic.create({
-                videoId: req.params.videoId,
-                analyticData: finalProccessData,
-                totalResponse: 0 // Changed to 0 since we will increment it later
-            }, { transaction });
+          }
         }
+      });
 
-        response.forEach((res) => {
-            const questionToUpdate = analyticResponse.analyticData.find((item) => item.id === res.id);
+      // fetch User subscription
+      const subscription = await getUserSubscriptions(
+        req.params.apiKey,
+        videoQuestion.createdBy,
+        res
+      );
+      console.log("subscription", subscription);
+      if (!subscription) {
+        return next(new ErrorHandler("User subscription not found", 400));
+      }
 
-            if (questionToUpdate) {
-                if (res.skip) {
-                    questionToUpdate.noOfSkip++;
-                } else {
-                    res.ans.forEach((answer) => {
-                        if (questionToUpdate.responses.hasOwnProperty(answer)) {
-                            questionToUpdate.responses[answer]++;
-                        }
-                    });
-                }
-            }
-        });
+      console.log("videoQuestion", videoQuestion);
+      const videoLength = videoQuestion.videoLength / 60;
 
-        // fetch User subscription
-        const subscription = await getUserSubscriptions(req.params.apiKey, videoQuestion.createdBy, res);
-        console.log("subscription" , subscription)
-        if (!subscription) {
-            return next(new ErrorHandler("User subscription not found", 400))
-        }
-
-        console.log("videoQuestion" , videoQuestion)
-        const videoLength = videoQuestion.videoLength / 60;
-
-        // Subscription under trial-period
-        if (subscription.isTrialActive) {
-            console.log("Enter inside trial period")
-            if (new Date() > new Date(subscription.trialEndDate)) {
-                return next(new ErrorHandler("Free trial has expired, please renew the plan", 400));
-            }
-
-            let earlyExpiredPlan = await PlanRestrict.findOne({
-                where: {
-                    videoId: req.params.videoId,
-                },
-                transaction
-            });
-
-            if (!earlyExpiredPlan) {
-                earlyExpiredPlan = await PlanRestrict.create({
-                    videoId: req.params.videoId,
-                    plans: [
-                        {
-                            planId: "Free Plan",
-                            totalUsedResponses: 0,
-                            expired: subscription.trialEndDate,
-                            maxLimit: subscription.freeTrialFeature.totalResponse
-                        }
-                    ]
-                }, { transaction });
-            }
-
-            // Checked plan has riched limit
-            if (earlyExpiredPlan.plans[0].totalUsedResponses >= Math.ceil(subscription.freeTrialFeature.totalResponse / videoLength)) {
-                return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
-            }
-
-            await Analytic.update(
-                {
-                    totalResponse: analyticResponse.totalResponse + 1,
-                    analyticData: analyticResponse.analyticData
-                },
-                {
-                    where: {
-                        id: analyticResponse.id
-                    },
-                    transaction
-                }
-            );
-
-            const feedbackRes = await Feedback.create({
-                clientId: req.user.id,
-                videoId: req.params.videoId,
-                response: response,
-            }, { transaction });
-
-            earlyExpiredPlan.plans[0].totalUsedResponses += 1;
-            earlyExpiredPlan.changed('plans', true);
-            await earlyExpiredPlan.save({ validate: false, transaction });
-
-            // checked plan has riched 90% of there overvall limit
-            if ((Math.ceil(subscription.freeTrialFeature.totalResponse / videoLength) - earlyExpiredPlan.plans[0].totalUsedResponses) <= Math.ceil(((subscription.freeTrialFeature.totalResponse + 1) / videoLength) * 0.1)) {
-                await notifyUserApproachingVideoLimit(subscription, videoQuestion);
-            }
-
-            await transaction.commit();
-
-            return res.status(200).json({
-                success: true,
-                message: "Feedback received successfully",
-                feedbackRes: feedbackRes,
-            });
-        }
-
-        if (subscription?.subscriptions.length == 0) {
-            return next(new ErrorHandler("No active plan found", 400))
-        }
-
-        const currentDate = new Date();
-        let activePlans = subscription.subscriptions
-            .filter(plan => new Date(plan.endDate) >= currentDate)
-            .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
-
-        if (activePlans.length === 0) {
-            return next(new ErrorHandler("No active plan found", 400))
+      // Subscription under trial-period
+      if (subscription.isTrialActive) {
+        console.log("Enter inside trial period");
+        if (new Date() > new Date(subscription.trialEndDate)) {
+          return next(
+            new ErrorHandler(
+              "Free trial has expired, please renew the plan",
+              400
+            )
+          );
         }
 
         let earlyExpiredPlan = await PlanRestrict.findOne({
-            where: {
-                videoId: req.params.videoId,
-            },
-            transaction
+          where: {
+            videoId: req.params.videoId,
+          },
+          transaction,
         });
 
         if (!earlyExpiredPlan) {
-            earlyExpiredPlan = await PlanRestrict.create({
-                videoId: req.params.videoId,
-                plans: [
-                    {
-                        planId: activePlans[0].id,
-                        totalUsedResponses: 0,
-                        expired: activePlans[0].endDate,
-                        maxLimit: activePlans[0].features.totalResponse
-                    }
-                ]
-            }, { transaction });
-        }
-    
-    earlyExpiredPlan.plans.sort((a, b) => new Date(a.expired) - new Date(b.expired));
-    const findFirstValidPlan = (earlyExpiredPlan, activePlans, videoLength) => {
-      let isLimitReached = false;
-      for (let i = 0; i < activePlans.length; i++) {
-        const planExist = earlyExpiredPlan.plans.find(
-          (plan) => plan.planId === activePlans[i].id
-        );
-        const hasReachedTheLimit = planExist
-          ? planExist.totalUsedResponses >=
-            Math.ceil(planExist.maxLimit / videoLength)
-          : null;
-        if (planExist && !hasReachedTheLimit) {
-          return planExist;
-        } else if (!planExist) {
-          return null;
-        }
-      }
-      return "Limit Reached";
-    };
-
-        // find first valid plan
-        let planExist = findFirstValidPlan(earlyExpiredPlan, activePlans, videoLength);
-
-        if(planExist == "Limit Reached"){
-            return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
+          earlyExpiredPlan = await PlanRestrict.create(
+            {
+              videoId: req.params.videoId,
+              plans: [
+                {
+                  planId: "Free Plan",
+                  totalUsedResponses: 0,
+                  expired: subscription.trialEndDate,
+                  maxLimit: subscription.freeTrialFeature.totalResponse,
+                },
+              ],
+            },
+            { transaction }
+          );
         }
 
-        if (!planExist) {
-            planExist = {
-                planId: activePlans[0].id,
-                totalUsedResponses: 0,
-                expired: activePlans[0].endDate,
-                maxLimit: activePlans[0].features.totalResponse
-            };
-            const existingData = earlyExpiredPlan.plans.filter(plan => new Date() <= new Date(plan.expired));
-            existingData.push(planExist);
-            earlyExpiredPlan.plans = existingData;
-        }
-
-        // From all avtive subscription plan filter those have not riched the limit
-        const validActivePlans = activePlans.filter(plan => {
-            const earlyPlan = earlyExpiredPlan.plans.find(p => p.planId === plan.id);
-            const hasReachedTheLimit = earlyPlan ? earlyPlan.totalUsedResponses >= Math.ceil(earlyPlan.maxLimit / videoLength) : null
-            return earlyPlan && !hasReachedTheLimit
-        });
-
-        if (validActivePlans.length === 1) {
-            const plan = validActivePlans[0];
-            const earlyPlan = earlyExpiredPlan.plans.find(p => p.planId === plan.id);
-
-            if (earlyPlan.totalUsedResponses >= Math.ceil(plan.features.totalResponse / videoLength)) {
-                return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
-            }
-
-            if ((Math.ceil(plan.features.totalResponse / videoLength) - earlyPlan.totalUsedResponses) <= Math.ceil((plan.features.totalResponse + 1/ videoLength) * 0.1)) {
-                await notifyUserApproachingVideoLimit(subscription, videoQuestion);
-            }
+        // Checked plan has riched limit
+        if (
+          earlyExpiredPlan.plans[0].totalUsedResponses >=
+          Math.ceil(subscription.freeTrialFeature.totalResponse / videoLength)
+        ) {
+          return next(
+            new ErrorHandler(
+              "Plan limit has exceeded, please renew your plan",
+              400
+            )
+          );
         }
 
         await Analytic.update(
-            {
-                totalResponse: analyticResponse.totalResponse + 1,
-                analyticData: analyticResponse.analyticData
+          {
+            totalResponse: analyticResponse.totalResponse + 1,
+            analyticData: analyticResponse.analyticData,
+          },
+          {
+            where: {
+              id: analyticResponse.id,
             },
-            {
-                where: {
-                    id: analyticResponse.id
-                },
-                transaction
-            }
+            transaction,
+          }
         );
 
-        console.log("before all plans" , earlyExpiredPlan.plans)
-
-        const feedbackRes = await Feedback.create({
+        const feedbackRes = await Feedback.create(
+          {
             clientId: req.user.id,
             videoId: req.params.videoId,
             response: response,
-        }, { transaction });
+          },
+          { transaction }
+        );
 
-        planExist.totalUsedResponses += 1;
+        earlyExpiredPlan.plans[0].totalUsedResponses += 1;
         earlyExpiredPlan.changed("plans", true);
         await earlyExpiredPlan.save({ validate: false, transaction });
 
-        console.log("After increament" , earlyExpiredPlan.plans)
+        // checked plan has riched 90% of there overvall limit
+        if (
+          Math.ceil(subscription.freeTrialFeature.totalResponse / videoLength) -
+            earlyExpiredPlan.plans[0].totalUsedResponses <=
+          Math.ceil(
+            ((subscription.freeTrialFeature.totalResponse + 1) / videoLength) *
+              0.1
+          )
+        ) {
+          await notifyUserApproachingVideoLimit(subscription, videoQuestion);
+        }
 
         await transaction.commit();
 
         return res.status(200).json({
-            success: true,
-            message: "Feedback received successfully",
-            feedbackRes: feedbackRes,
+          success: true,
+          message: "Feedback received successfully",
+          feedbackRes: feedbackRes,
         });
+      }
+
+      if (subscription?.subscriptions.length == 0) {
+        return next(new ErrorHandler("No active plan found", 400));
+      }
+
+      const currentDate = new Date();
+      let activePlans = subscription.subscriptions
+        .filter((plan) => new Date(plan.endDate) >= currentDate)
+        .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+
+      if (activePlans.length === 0) {
+        return next(new ErrorHandler("No active plan found", 400));
+      }
+
+      let earlyExpiredPlan = await PlanRestrict.findOne({
+        where: {
+          videoId: req.params.videoId,
+        },
+        transaction,
+      });
+
+      if (!earlyExpiredPlan) {
+        earlyExpiredPlan = await PlanRestrict.create(
+          {
+            videoId: req.params.videoId,
+            plans: [
+              {
+                planId: activePlans[0].id,
+                totalUsedResponses: 0,
+                expired: activePlans[0].endDate,
+                maxLimit: activePlans[0].features.totalResponse,
+              },
+            ],
+          },
+          { transaction }
+        );
+      }
+
+      earlyExpiredPlan.plans.sort(
+        (a, b) => new Date(a.expired) - new Date(b.expired)
+      );
+      const findFirstValidPlan = (
+        earlyExpiredPlan,
+        activePlans,
+        videoLength
+      ) => {
+        for (let i = 0; i < activePlans.length; i++) {
+          const planExist = earlyExpiredPlan.plans.find(
+            (plan) => plan.planId === activePlans[i].id
+          );
+          const hasReachedTheLimit = planExist
+            ? planExist.totalUsedResponses >=
+              Math.ceil(planExist.maxLimit / videoLength)
+            : null;
+          if (planExist && !hasReachedTheLimit) {
+            return { valid: true, plan: planExist };
+          } else if (!planExist) {
+            return { valid: false, plan: activePlans[i] };
+          }
+        }
+        return { valid: false, plan: "Limit Reached" };
+      };
+
+      // // find first valid plan
+      // let planExist = findFirstValidPlan(earlyExpiredPlan, activePlans, videoLength);
+
+      // if(planExist == "Limit Reached"){
+      //     return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
+      // }
+
+      // if (!planExist[0]) {
+      //     planExist = {
+      //         // planId: activePlans[0].id,
+      //         // totalUsedResponses: 0,
+      //         // expired: activePlans[0].endDate,
+      //         // maxLimit: activePlans[0].features.totalResponse
+      //         planId: planExist[1].id,
+      //         totalUsedResponses: 0,
+      //         expired: planExist[1].endDate,
+      //         maxLimit: planExist[1].features.totalResponse
+      //     };
+      //     const existingData = earlyExpiredPlan.plans.filter(plan => new Date() <= new Date(plan.expired));
+      //     existingData.push(planExist);
+      //     earlyExpiredPlan.plans = existingData;
+      // }
+
+      // Find first valid plan
+      let planCheck = findFirstValidPlan(earlyExpiredPlan,activePlans,videoLength);
+
+      if (planCheck.plan === "Limit Reached") {
+        return next(
+          new ErrorHandler(
+            "Plan limit has exceeded, please renew your plan",
+            400
+          )
+        );
+      }
+
+      let planExist;
+      if (!planCheck.valid) {
+        planExist = {
+          planId: planCheck.plan.id,
+          totalUsedResponses: 0,
+          expired: planCheck.plan.endDate,
+          maxLimit: planCheck.plan.features.totalResponse,
+        };
+        const existingData = earlyExpiredPlan.plans.filter(
+          (plan) => new Date() <= new Date(plan.expired)
+        );
+        existingData.push(planExist);
+        earlyExpiredPlan.plans = existingData;
+      } else {
+        planExist = planCheck.plan;
+      }
+
+      // From all avtive subscription plan filter those have not riched the limit
+      const validActivePlans = activePlans.filter((plan) => {
+        const earlyPlan = earlyExpiredPlan.plans.find(
+          (p) => p.planId === plan.id
+        );
+        const hasReachedTheLimit = earlyPlan
+          ? earlyPlan.totalUsedResponses >=
+            Math.ceil(earlyPlan.maxLimit / videoLength)
+          : null;
+        return earlyPlan && !hasReachedTheLimit;
+      });
+
+      if (validActivePlans.length === 1) {
+        const plan = validActivePlans[0];
+        const earlyPlan = earlyExpiredPlan.plans.find(
+          (p) => p.planId === plan.id
+        );
+
+        if (earlyPlan.totalUsedResponses >= Math.ceil(plan.features.totalResponse / videoLength)) {
+          return next(
+            new ErrorHandler(
+              "Plan limit has exceeded, please renew your plan",
+              400
+            )
+          );
+        }
+
+        if ((Math.ceil(plan.features.totalResponse / videoLength) - earlyPlan.totalUsedResponses) <= Math.ceil((plan.features.totalResponse + 1 / videoLength) * 0.1)) {
+          await notifyUserApproachingVideoLimit(subscription, videoQuestion);
+        }
+      }
+
+      await Analytic.update(
+        {
+          totalResponse: analyticResponse.totalResponse + 1,
+          analyticData: analyticResponse.analyticData,
+        },
+        {
+          where: {
+            id: analyticResponse.id,
+          },
+          transaction,
+        }
+      );
+
+      console.log("before all plans", earlyExpiredPlan.plans);
+
+      const feedbackRes = await Feedback.create(
+        {
+          clientId: req.user.id,
+          videoId: req.params.videoId,
+          response: response,
+        },
+        { transaction }
+      );
+
+      planExist.totalUsedResponses += 1;
+      earlyExpiredPlan.changed("plans", true);
+      await earlyExpiredPlan.save({ validate: false, transaction });
+
+      console.log("After increament", earlyExpiredPlan.plans);
+
+      await transaction.commit();
+
+      return res.status(200).json({
+        success: true,
+        message: "Feedback received successfully",
+        feedbackRes: feedbackRes,
+      });
     } catch (error) {
         await transaction.rollback();
         return next(error instanceof ErrorHandler ? error : new ErrorHandler(error.message, 500));
