@@ -1,6 +1,7 @@
 const {  DataTypes } = require('sequelize') 
 const {sequelize} = require("../db/index.js")
 const Feedback = require('./feedback.models.js');
+const PlanRestrict = require("../models/planrestrict.model.js")
 
 const Video = sequelize.define('Video', {
     video_id: {
@@ -62,6 +63,12 @@ Video.hasMany(Feedback, { // Assuming each video can have multiple feedbacks
     foreignKey: 'videoId',
     as: "feedback"
 });
+
+Video.hasMany(PlanRestrict, { // Each video can have multiple plan restrictions
+    foreignKey: 'planId',
+    as: "plans"
+});
+
 
 module.exports = Video
 

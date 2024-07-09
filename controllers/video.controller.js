@@ -14,6 +14,7 @@ const {
   SUBSCRIPTION_API
  } = require("../constants.js")
 const ffmpeg = require("fluent-ffmpeg");
+const PlanRestrict = require("../models/planrestrict.model.js");
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
  
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -285,6 +286,12 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
       createdBy: req.user?.obj?.id,
       isDeleted: false
     },
+    include:[
+      {
+        model:PlanRestrict,
+        as:"plans"
+      }
+    ],
     limit: pageSize,
     offset: offset,
   });
