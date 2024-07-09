@@ -64,10 +64,8 @@ Video.hasMany(Feedback, { // Assuming each video can have multiple feedbacks
     as: "feedback"
 });
 
-Video.hasMany(PlanRestrict, { // Each video can have multiple plan restrictions
-    foreignKey: 'planId',
-    as: "plans"
-});
+Video.hasMany(PlanRestrict, { as: 'plans' });
+
 
 
 module.exports = Video
