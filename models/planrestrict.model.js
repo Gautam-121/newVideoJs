@@ -16,7 +16,7 @@ const PlanRestrict = sequelize.define("planRestrict" , {
 // Video.hasMany(PlanRestrict, { as: 'plans' });
 
 // Define the associations
-Video.belongsTo(PlanRestrict, { 
+Video.hasMany(PlanRestrict, { 
     foreignKey: 'videoId',
     as: 'plans'  // This is how you'll access PlanRestricts from a Video instance
   });
