@@ -606,9 +606,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
           return null;
         }
       }
-      if (isLimitReached) {
-        return "Limit Reached";
-      }
+      return "Limit Reached";
     };
 
         // find first valid plan
