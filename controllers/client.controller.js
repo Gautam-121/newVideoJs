@@ -384,7 +384,7 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
             return next(new ErrorHandler("videoId is missing", 400));
         }
 
-        if(req.params.apiKey){
+        if(!req.params.apiKey){
             return next(new ErrorHandler("Misiing Api key", 400))
         }
 
