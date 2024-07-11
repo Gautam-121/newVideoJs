@@ -106,13 +106,13 @@ const createVideoData = asyncHandler(async (req, res, next) => {5
     }
 
     // Validate videoLength
-    if (!data.videoLength || isNaN(Number(data.videoLength)) || Number(data.videoLength) <= 0) {
+    if (!data.videoLength || isNaN(data.videoLength) || data.videoLength <= 0) {
       return next(new ErrorHandler('Video length is required and must be a number greater than 0', 400))
     }
 
   const video = await Video.create({
     ...data,
-    videoLength:Number(data.videoLength),
+    videoLength:data.videoLength,
     createdBy: req.user?.obj?.id
   });
 
@@ -423,7 +423,7 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
   }
 
   // Validate videoLength
-  if (!data.videoLength || isNaN(Number(data.videoLength)) || Number(data.videoLength) <= 0) {
+  if (!data.videoLength || isNaN(data.videoLength) || data.videoLength <= 0) {
     return next(new ErrorHandler('Video length is required and must be a number greater than 0', 400))
   }
 
