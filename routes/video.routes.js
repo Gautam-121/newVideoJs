@@ -14,12 +14,13 @@ const {
 } = require("../controllers/video.controller.js");
 const { uploadThumbnail , uploadVideos } = require("../middlewares/multer.middleware.js")
 const {verifyJWt} = require("../middlewares/auth.middleware.js")
+const validation = require("../validations/video.validation.js")
 
-router.post("/upload/media" ,  uploadVideos.single("video"), uploadVideo);
+router.post("/upload/media" , verifyJWt ,  uploadVideos.single("video"), uploadVideo);
 
 router.post("/upload/thumbnail" , verifyJWt , uploadThumbnail.single("thumbnail") , uploadThumb)
 
-router.post("/upload/multipleMedia", verifyJWt ,  uploadVideos.any() , createVideoData);
+router.post("/upload/multipleMedia", verifyJWt ,  uploadVideos.any() , validation.createVideo , createVideoData);
 
 router.get("/getAllVideo", verifyJWt ,  getAllVideo);
 

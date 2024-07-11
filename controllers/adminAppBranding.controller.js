@@ -2,14 +2,31 @@ const AppBranding = require("../models/adminAppBranding.models")
 const ErrorHandler = require("../utils/errorHandler");
 const asyncHandler = require("../utils/asyncHandler")
 
+
 const createdBranding = asyncHandler(async(req,res,next)=>{
 
-    const { brandName , description } = req.body
+    const { brandName , description , url } = req.body
 
-    if(
-        [brandName , description].some(field => field?.trim() === "")
-    ){
-        return next(new ErrorHandler("All field is Required",400))
+    //Validate brandName
+    if (!brandName || typeof brandName !== 'string' || brandName.trim() === '') {
+        return next(new ErrorHandler('Brand name is required and must be a non-empty string' , 400))
+    }
+    // Validate description
+    if (!description || typeof description !== 'string' || description.trim() === '') {
+        return next(new ErrorHandler("Description is required and must be a non-empty string" , 400))
+    }
+
+    // Validate url (optional)
+    if (url !== undefined) {
+        const urlPattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
+            '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
+            '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
+            '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
+            '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
+            '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
+        if (!urlPattern.test(url)) {
+            return next(new ErrorHandler('URL must be a valid URL', 400))
+        }
     }
 
     const isAlreadyCreatedBranding = await AppBranding.findOne({
@@ -40,6 +57,7 @@ const createdBranding = asyncHandler(async(req,res,next)=>{
         brandName , 
         description,
         logo:  req.files.logo[0].filename,
+        url: url,
         coverImage: req.files.coverImage[0].filename,
         createdBy: req.user?.obj?.id
     })
@@ -83,10 +101,37 @@ const getAppBranding = asyncHandler(async(req , res , next)=>{
 
 const updateAppBrandingDetails = asyncHandler(async(req , res , next)=>{
 
-    const {brandName, description} = req.body
+    const {brandName, description , url } = req.body
+    
+    // Validate brandName (optional)
+    if (brandName !== undefined) {
+        if (typeof brandName !== 'string') {
+            errors.push({ msg: 'Brand name must be a string' });
+        }
+    }
 
-    if (!brandName && !description) {
-        return next(new ErrorHandler("All fields are required", 400))
+    // Validate description (optional)
+    if (description !== undefined) {
+        if (typeof description !== 'string') {
+            errors.push({ msg: 'Description must be a string' });
+        }
+    }
+
+    // Validate url (optional)
+    if (url !== undefined) {
+        const urlPattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
+            '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
+            '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
+            '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
+            '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
+            '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
+        if (!urlPattern.test(url)) {
+            errors.push({ msg: 'URL must be a valid URL' });
+        }
+    }
+      
+    if (!brandName && !description && !url) {
+        return next(new ErrorHandler("brandName or description fields are required", 400))
     }
 
     const appBrandingByAdmin = await AppBranding.findOne({
@@ -101,10 +146,14 @@ const updateAppBrandingDetails = asyncHandler(async(req , res , next)=>{
         )
     }
 
+     // Only include fields that are provided and valid
+     const updateFields = {};
+     if (brandName !== undefined) updateFields.brandName = brandName;
+     if (description !== undefined) updateFields.description = description;
+     if (url !== undefined) updateFields.url = url;
+
     await AppBranding.update(
-        {
-           ...req.body
-        },
+        updateFields,
         {
             where:{
                 createdBy: req.user?.obj?.id

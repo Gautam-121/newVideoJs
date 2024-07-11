@@ -614,6 +614,11 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         transaction,
       });
 
+      if(earlyExpiredPlan){
+        // check free plan is there if there remove it 
+        earlyExpiredPlan.plans = earlyExpiredPlan.plans.filter(plan => plan.planId !== "Free Plan")
+      }
+      
       if (!earlyExpiredPlan) {
         earlyExpiredPlan = await PlanRestrict.create(
           {
@@ -656,28 +661,6 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
         return { valid: false, plan: "Limit Reached" };
       };
 
-      // // find first valid plan
-      // let planExist = findFirstValidPlan(earlyExpiredPlan, activePlans, videoLength);
-
-      // if(planExist == "Limit Reached"){
-      //     return next(new ErrorHandler("Plan limit has exceeded, please renew your plan", 400))
-      // }
-
-      // if (!planExist[0]) {
-      //     planExist = {
-      //         // planId: activePlans[0].id,
-      //         // totalUsedResponses: 0,
-      //         // expired: activePlans[0].endDate,
-      //         // maxLimit: activePlans[0].features.totalResponse
-      //         planId: planExist[1].id,
-      //         totalUsedResponses: 0,
-      //         expired: planExist[1].endDate,
-      //         maxLimit: planExist[1].features.totalResponse
-      //     };
-      //     const existingData = earlyExpiredPlan.plans.filter(plan => new Date() <= new Date(plan.expired));
-      //     existingData.push(planExist);
-      //     earlyExpiredPlan.plans = existingData;
-      // }
 
       // Find first valid plan
       let planCheck = findFirstValidPlan(earlyExpiredPlan,activePlans,videoLength);

@@ -27,7 +27,6 @@ router.route("/app-branding").post(
     ]),
     createdBranding
 ) 
-
 router.route("/app-branding").get( verifyJWt , getAppBranding) 
 
 router.route("/details/app-branding").put( verifyJWt , updateAppBrandingDetails) 

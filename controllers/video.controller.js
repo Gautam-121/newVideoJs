@@ -81,23 +81,34 @@ const createVideoData = asyncHandler(async (req, res, next) => {5
 
   const data = JSON.parse(JSON.stringify(req.body));
 
-  if(!data.title || !data.videoSelectedFile || !data.videoData || !data.videoFileUrl){
-    return next(
-      new ErrorHandler(
-        "All field are required",
-        400
-      )
-    )
-  }
+  // Validate title
+    if (!data.title || typeof data.title !== 'string' || data.title.trim() === '') {
+      return next(new ErrorHandler('Title is required and must be a non-empty string' , 400))
+    }
 
-  if(!data.videoLength){
-    return next(
-      new ErrorHandler(
-        "VideoLength is required and must be number",
-         400
-      )
-    )
-  }
+    // Validate videoSelectedFile
+    if (!data.videoSelectedFile || typeof data.videoSelectedFile !== 'object') {
+      return next(new ErrorHandler('Video selected file is required and must be an object' , 400))
+    }
+
+    // Validate videoData
+    if (!data.videoData || typeof data.videoData !== 'object') {
+      return next(new ErrorHandler('Video data is required and must be an object', 400))
+    }
+
+    // Validate videoFileUrl
+    if (!Array.isArray(data.videoFileUrl) || data.videoFileUrl.length === 0) {
+      return next(new ErrorHandler('Video file URL is required and must be a non-empty array', 400))
+    }
+
+    if (!data.videoFileUrl.every(url => typeof url === 'string' && url.trim() !== '')) {
+      return next(new ErrorHandler('All video file URLs must be non-empty strings', 400))
+    }
+
+    // Validate videoLength
+    if (!data.videoLength || isNaN(Number(data.videoLength)) || Number(data.videoLength) <= 0) {
+      return next(new ErrorHandler('Video length is required and must be a number greater than 0', 400))
+    }
 
   const video = await Video.create({
     ...data,
@@ -175,7 +186,7 @@ const uploadVideo = async (req, res, next) => {
         fs.unlinkSync(videoFilePath.path);
         console.log(`Successfully deleted local file: ${videoFilePath.path}`);
       }
-      throw new Error('Failed to verify the uploaded video on CDN.');
+      return next(new ErrorHandler('Failed to verify the uploaded video on CDN', 400))
     }
 
     // Safely delete the file from local storage after verifying upload to the CDN
@@ -358,13 +369,7 @@ const getVideoById = asyncHandler(async (req, res, next) => {
 
 // update UploadMultiMedia Data
 const updateVideoData = asyncHandler( async (req, res, next)=>{
-  // take id and check video exist or not
-  // take parameter frm user 
-  // validate the field videoSelectedFile , videoData , title
-  // update the data 
-  // verify successfully updated or not
-  // successfully updated send respond to user
-
+  
   const { id } = req.params
 
   if(!id) {
@@ -393,43 +398,40 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
   const data = JSON.parse(JSON.stringify(req.body))
 
-  //let filterVideoFile = []
+  // Validate title
+  if (!data.title || typeof data.title !== 'string' || data.title.trim() === '') {
+    return next(new ErrorHandler('Title is required and must be a non-empty string' , 400))
+  }
 
-  // unlink all files from local
-  // if (
-  //   video &&
-  //   video.videoFileUrl &&
-  //   video?.videoFileUrl.length > 0 &&
-  //   data?.videoFileUrl &&
-  //   Array.isArray(data?.videoFileUrl) && 
-  //   data?.videoFileUrl.length > 0
-  // ) {
-  //   filterVideoFile = video?.videoFileUrl.filter(
-  //     (videoStr) => !data.videoFileUrl.includes(videoStr)
-  //   );
-  // }
+  // Validate videoSelectedFile
+  if (!data.videoSelectedFile || typeof data.videoSelectedFile !== 'object') {
+    return next(new ErrorHandler('Video selected file is required and must be an object' , 400))
+  }
 
-  // if(filterVideoFile.length>0){
-  //   filterVideoFile.forEach(videoPath => {
-  //     fs.unlinkSync(`public/temp/${videoPath}`)
-  //   })
-  // }
+  // Validate videoData
+  if (!data.videoData || typeof data.videoData !== 'object') {
+    return next(new ErrorHandler('Video data is required and must be an object', 400))
+  }
 
-  // if(filterVideoFile.length>0){
-  //   const deleteFileOnAwsS3 = await deleteObjectsFromS3(filterVideoFile)
+  // Validate videoFileUrl
+  if (!Array.isArray(data.videoFileUrl) || data.videoFileUrl.length === 0) {
+    return next(new ErrorHandler('Video file URL is required and must be a non-empty array', 400))
+  }
 
-  //   if(!deleteFileOnAwsS3){
-  //     return next(
-  //       new ErrorHandler(
-  //         "Something went wrong while updating video file from Aws s3 cloud",
-  //         500
-  //       )
-  //     )
-  //   }
-  // }
+  if (!data.videoFileUrl.every(url => typeof url === 'string' && url.trim() !== '')) {
+    return next(new ErrorHandler('All video file URLs must be non-empty strings', 400))
+  }
+
+  // Validate videoLength
+  if (!data.videoLength || isNaN(Number(data.videoLength)) || Number(data.videoLength) <= 0) {
+    return next(new ErrorHandler('Video length is required and must be a number greater than 0', 400))
+  }
 
   const [rowsUpdated, [updatedVideoData]] = await Video.update(
-    data,
+    {
+      ...data,
+      videoLength: Number(data.videoLength)
+    },
     {
       where:{
         video_id: id,
@@ -453,7 +455,6 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
     vidoData: updatedVideoData,
     message: "update the videoData successfully"
   })
-
 })
 
 // delete MultiMedia Data
@@ -490,19 +491,6 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
     );
   }
 
-  // unlink all files from cloudinary
-  // if(video && video.videoFileUrl && video?.videoFileUrl.length>0){
-  //   const deleteFileOnAwsS3 = await deleteObjectsFromS3(video?.videoFileUrl)
-
-  //   if(!deleteFileOnAwsS3){
-  //     return next(
-  //       new ErrorHandler(
-  //         "Somwthing went wrong while deleting video file from aws s3 cloud"
-  //       )
-  //     )
-  //   }
-  // }
-
   const [deleteVideo] = await Video.update(
     {
       isDeleted: true
@@ -523,19 +511,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
       )
     );
   }
-
-  // unlink all files from local
-  // if (
-  //   video &&
-  //   video.videoFileUrl &&
-  //   Array.isArray(video?.videoFileUrl) &&
-  //   video?.videoFileUrl?.length > 0
-  // ) {
-  //   video?.videoFileUrl.forEach((videoPath) => {
-  //     fs.unlinkSync(`public/temp/${videoPath}`);
-  //   });
-  // }
-
+  
   return res.status(200).json({
     success: true,
     message: "Video data deleted successufully",
@@ -661,9 +637,9 @@ const summeryResponse = async (req, res, next) => {
       return next(new ErrorHandler("Mising required field id", 400));
     }
 
-    // if (!IsValidUUID(id)) {
-    //   return next(new ErrorHandler("Must be a valid UUID", 400));
-    // }
+    if (!IsValidUUID(id)) {
+      return next(new ErrorHandler("Must be a valid UUID", 400));
+    }
 
     const analyticResponse = await Analytic.findByPk(id,{
       include: [{
