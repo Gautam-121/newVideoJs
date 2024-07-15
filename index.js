@@ -9,17 +9,14 @@ process.on("uncaughtException", (err) => {
 });
 
 //Database Connection
-connectDB()
-.then(() => {
+connectDB().then(() => {
     const server = app.listen(port, () => {
         console.log(`⚙️ Server is running at port : ${port}`);
     })
-
     app.set('views', './views');
     app.set('view engine', 'ejs');
 
     app.get("/apps/products", (req,res,next)=>{
-
         const products = [
                 {
                     "description": "Handmade in Italy, the Peekaboo Iconic Mini Beaded Floral Tote Bag is made of soft purple lambskin leather with multicolor beaded floral embroidery, paired with gold-finish metalware that adds a posh feel. It features the iconic twist lock closure on both sides, that opens to two inner compartments lined in tone on tone soft lambskin leather separated by a stiff partition, with dual pockets for your phone and keys. Make a fashion statement with Fendi's Peekaboo bag, a one-off piece a collector shouldn't miss! CONDITION: Excellent with minimal sign of wear ORIGIN: Made in Italy DIMENSIONS: 17x24x10 cm MATERIAL: 100% Lambskin leather | Embroidery: 1:100% glass | Lining:100% lambskin leather PACKAGING: Fendi authenticity card and dust bag PRODUCT ID: SVSGBG86024",

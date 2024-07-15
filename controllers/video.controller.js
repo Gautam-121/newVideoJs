@@ -637,9 +637,9 @@ const summeryResponse = async (req, res, next) => {
       return next(new ErrorHandler("Mising required field id", 400));
     }
 
-    if (!IsValidUUID(id)) {
-      return next(new ErrorHandler("Must be a valid UUID", 400));
-    }
+    // if (!IsValidUUID(id)) {
+    //   return next(new ErrorHandler("Must be a valid UUID", 400));
+    // }
 
     const analyticResponse = await Analytic.findByPk(id,{
       include: [{
