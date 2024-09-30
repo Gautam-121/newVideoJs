@@ -50,6 +50,27 @@ const AppBranding = sequelize.define("AppBranding" , {
         allowNull: false,
         unique: true
     }
+}, {
+    hooks: {
+        beforeCreate: (appBranding, options) => {
+            // Trim leading and trailing spaces for brandName and description
+            if (appBranding.brandName) {
+                appBranding.brandName = appBranding.brandName.trim();
+            }
+            if (appBranding.description) {
+                appBranding.description = appBranding.description.trim();
+            }
+        },
+        beforeUpdate: (appBranding, options) => {
+            // Trim leading and trailing spaces for brandName and description
+            if (appBranding.brandName) {
+                appBranding.brandName = appBranding.brandName.trim();
+            }
+            if (appBranding.description) {
+                appBranding.description = appBranding.description.trim();
+            }
+        }
+    }
 })
 
 module.exports = AppBranding

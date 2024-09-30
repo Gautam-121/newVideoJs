@@ -25,7 +25,7 @@ const Video = sequelize.define('Video', {
     },
     videoFileUrl:{
         type: DataTypes.ARRAY(DataTypes.STRING),
-        allowNull: false
+        allowNull: true
     },
     videoData:{
         type: DataTypes.JSON,

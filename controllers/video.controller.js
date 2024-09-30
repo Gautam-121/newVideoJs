@@ -11,12 +11,13 @@ const {
   HSL_BASE_URL , 
   UPLOAD_VIDEO_FOLDER,
   LOCAL_VIDEO_STORAGE_BASE_URL,
-  SUBSCRIPTION_API
  } = require("../constants.js")
 const ffmpeg = require("fluent-ffmpeg");
 const PlanRestrict = require("../models/planrestrict.model.js");
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
- 
+const { checkPlanExpired } = require("../utils/saasApis.js")
+const { validationResult } = require("express-validator")
+
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 
@@ -24,55 +25,17 @@ const openAi = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
 
-// handler function to check plan expiry
-async function checkPlanExpired(bearerToken , res) {
+function isValidUrl(string) {
   try {
-
-    // Make a request to the subscription management server to fetch the user's subscription details
-    const subscriptionResponse = await axios.get(`${SUBSCRIPTION_API}`,{
-      headers: {
-        'Authorization': `${bearerToken}`
-      }
-    });
-
-    if(!subscriptionResponse ||  subscriptionResponse.length == 0){
-      return res.status(404).json({
-        success: false,
-        message: "Subscription plan not found"
-      })
-    }
-
-    if(subscriptionResponse.data[0].isTrialActive){
-      return subscriptionResponse.data[0] 
-    }
-
-    // Get all Active Plan
-    const activeSubscriptions = subscriptionResponse.data[0].subscriptions
-    .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
-
-    if(activeSubscriptions.length == 0){
-      res.status(400).json({
-        success: false,
-        message: "Please renew your subscription plan. Your current subscription is expired."
-      });      
-    }
-
-    // Get all Plan Hierarchy
-    const planHierarchy = [...new Set(activeSubscriptions.map(plan => plan.plan))];
-    return activeSubscriptions.reduce((highest, current) => 
-      planHierarchy.indexOf(current.plan) > planHierarchy.indexOf(highest.plan) ? current : highest
-    );
-    
-  } catch (error) {
-    console.error('Error checking subscription plan:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Something went wrong while fetching the subscription"
-    });
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
   }
 }
 
-const UPLOAD_DELAY_MS = 5000; // 5-second delay to allow CDN processing
+
+const UPLOAD_DELAY_MS = 3000; // 5-second delay to allow CDN processing
 // Function to delay execution
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -81,15 +44,107 @@ const createVideoData = asyncHandler(async (req, res, next) => {5
 
   const data = JSON.parse(JSON.stringify(req.body));
 
-  // Validate title
-    if (!data.title || typeof data.title !== 'string' || data.title.trim() === '') {
-      return next(new ErrorHandler('Title is required and must be a non-empty string' , 400))
+  // const error = validationResult(req)
+
+  // if(!error.isEmpty()){
+  //   return res.status(400).json({success: false , message : error.array({ onlyFirstError: true })})
+  // }
+
+  let token = req.headers['authorization'];
+  const subscription = await checkPlanExpired(token)
+
+    if(!subscription ||  subscription.length == 0){
+      return res.status(500).json({
+        success: false,
+        message: "Something went wrong while fetching user details"
+      })
     }
 
-    // Validate videoSelectedFile
-    if (!data.videoSelectedFile || typeof data.videoSelectedFile !== 'object') {
-      return next(new ErrorHandler('Video selected file is required and must be an object' , 400))
+    if(!subscription?.data[0].isTrialActive){
+      // Get all Active Plan
+      const activeSubscriptions = subscription.data[0].subscriptions
+      .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
+
+      if(activeSubscriptions.length == 0){
+        res.status(400).json({
+          success: false,
+          message: "Please renew your subscription plan. Your current subscription is expired."
+        });      
+      }
     }
+    else if(subscription?.data[0].isTrialActive && subscription?.data[0].endDate < new Date()){
+      return next(new ErrorHandler("Your trial is expired , Please renew your plan" , 400))
+    }
+
+  // Validate title (only letters and numbers)
+  const titleRegex = /^[a-zA-Z0-9\s]+$/;
+  if (!data.title || typeof data.title !== 'string' || data.title.trim() === '' || !titleRegex.test(data.title)) {
+    return next(new ErrorHandler('Title is required and must be a non-empty string containing only letters and numbers', 400));
+  }
+
+   // Validate videoSelectedFile
+   if (!data.videoSelectedFile || typeof data.videoSelectedFile !== 'object') {
+    return next(new ErrorHandler('Video selected file is required and must be an object', 400));
+  }
+
+  const { id, videoSrc, questions, thumbnail, name, thumbnails } = data.videoSelectedFile;
+
+  if (!id || typeof id !== 'string') {
+    return next(new ErrorHandler('Video selected file must contain a valid id', 400));
+  }
+
+  if (!videoSrc || typeof videoSrc !== 'string' || !isValidUrl(videoSrc)) {
+    return next(new ErrorHandler('Video selected file must contain a valid videoSrc URL', 400));
+  }
+
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return next(new ErrorHandler('Video selected file must contain a non-empty array of questions', 400));
+  }
+
+  for (const question of questions) {
+    if (!question.id || typeof question.id !== 'string' || !question.question || typeof question.question !== 'string') {
+      return next(new ErrorHandler('Each question must have a valid id and question text', 400));
+    }
+    if (!Array.isArray(question.answers) || question.answers.length === 0) {
+      return next(new ErrorHandler('Each question must contain a non-empty array of answers', 400));
+    }
+    if(!question.multiple || typeof question.multiple !== "boolean"){
+      return next(new ErrorHandler("Each question must contain multiple field and must be boolean",400))
+    }
+    if(!question.skip ||typeof question.skip !== "boolean"){
+      return next(new ErrorHandler("Each question must contain skip filed and must be boolean",400))
+    }
+    if (isNaN(question.time) || question.time <= 0) {
+      return next(new ErrorHandler('The time field in each question must be a number greater than 0', 400));
+    }
+    const timeFormatRegex = /^\d{2}:\d{2}\.\d{1}$/;
+    if (!question.formattedTime || typeof question.formattedTime !== 'string' || !timeFormatRegex.test(question.formattedTime)) {
+      return next(new ErrorHandler('The formattedTime field in each question must be a valid time string in the format "mm:ss.d"', 400));
+    }
+    for (const answer of question.answers) {
+      if (!answer.id || typeof answer.id !== 'string' || !answer.answer || typeof answer.answer !== 'string') {
+        return next(new ErrorHandler('Each answer must have a valid id and answer text', 400));
+      }
+    }
+  }
+
+  if (!thumbnail || typeof thumbnail.url !== 'string' || typeof thumbnail.timestamp !== 'string' || !isValidUrl(thumbnail.url)) {
+    return next(new ErrorHandler('Video selected file must contain a valid thumbnail with url and timestamp', 400));
+  }
+
+  if (!name || typeof name !== 'string') {
+    return next(new ErrorHandler('Video selected file must contain a valid name', 400));
+  }
+
+  if (!Array.isArray(thumbnails) || thumbnails.length === 0) {
+    return next(new ErrorHandler('Video selected file must contain a non-empty array of thumbnails', 400));
+  }
+
+  for (const thumb of thumbnails) {
+    if (!thumb.url || typeof thumb.url !== 'string' || isNaN(thumb.time) || !isValidUrl(thumb.url)) {
+      return next(new ErrorHandler('Each thumbnail must contain a valid url and time', 400));
+    }
+  }
 
     // Validate videoData
     if (!data.videoData || typeof data.videoData !== 'object') {
@@ -111,26 +166,18 @@ const createVideoData = asyncHandler(async (req, res, next) => {5
     }
 
   const video = await Video.create({
-    ...data,
+    title:data.title,
+    videoFileUrl:data.videoFileUrl,
+    videoData: data.videoData,
+    videoSelectedFile: data.videoSelectedFile,
     videoLength:data.videoLength,
     createdBy: req.user?.obj?.id
   });
 
-  const videoData = await Video.findByPk(video.video_id)
-
-  if(!videoData){
-    return next(
-      new ErrorHandler(
-        "Something went wrong while creating the data", 
-        500
-      )
-    )
-  }
-
   return res.status(201).json({
     success: true,
     message: "Video Data Created Successfully",
-    videoData,
+    videoData: video,
   });
 })
 
@@ -140,7 +187,33 @@ const uploadVideo = async (req, res, next) => {
     const videoFilePath = req?.file;
 
     if (!videoFilePath) {
-      return next(new ErrorHandler("Missing Video File. Provide a video file.", 400));
+      return next(new ErrorHandler("Missing Video File.", 400));
+    }
+
+    let token = req.headers['authorization'];
+    const subscription = await checkPlanExpired(token)
+
+    if(!subscription ||  subscription.length == 0){
+      return res.status(404).json({
+        success: false,
+        message: "Subscription plan not found"
+      })
+    }
+
+    if(!subscription?.data[0].isTrialActive){
+      // Get all Active Plan
+      const activeSubscriptions = subscription.data[0].subscriptions
+      .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
+
+      if(activeSubscriptions.length == 0){
+        res.status(400).json({
+          success: false,
+          message: "Please renew your subscription plan. Your current subscription is expired."
+        });      
+      }
+    }
+    else if(subscription?.data[0].isTrialActive && subscription?.data[0].endDate < new Date()){
+      return next(new ErrorHandler("Your trial is expired , Please renew your plan" , 400))
     }
 
     const data = {
@@ -157,6 +230,14 @@ const uploadVideo = async (req, res, next) => {
         "Content-Type": "application/json",
       },
     });
+
+    if(uploadVideoFileOn5centCdn?.data.result === "error"){
+      if (fs.existsSync(videoFilePath.path)) {
+        fs.unlinkSync(videoFilePath.path);
+        console.log(`Successfully deleted local file: ${videoFilePath.path}`);
+      }
+      return next(new ErrorHandler("someting went wrong while uploading file on cdn" , 500))
+    }
 
     console.log('Video uploaded to CDN, response:', uploadVideoFileOn5centCdn.data);
 
@@ -186,7 +267,7 @@ const uploadVideo = async (req, res, next) => {
         fs.unlinkSync(videoFilePath.path);
         console.log(`Successfully deleted local file: ${videoFilePath.path}`);
       }
-      return next(new ErrorHandler('Failed to verify the uploaded video on CDN', 400))
+      return next(new ErrorHandler('something went wrong while uplodaing file on cdn', 500))
     }
 
     // Safely delete the file from local storage after verifying upload to the CDN
@@ -198,7 +279,6 @@ const uploadVideo = async (req, res, next) => {
       }
     } catch (unlinkError) {
       console.error(`Failed to delete the local file: ${unlinkError.message}`);
-      return next(new ErrorHandler("Video uploaded but failed to delete the local file.", 500));
     }
 
     return res.status(201).json({
@@ -259,12 +339,7 @@ const uploadThumb= async(req , res , next)=>{
   // })
 
   if(!thumbnailFilePath){
-    return next(
-      new ErrorHandler(
-        "Missing Video File , Provide video file",
-         400
-      )
-    )
+    return next(new ErrorHandler( "Missing thumbnail file", 400))
   }
 
   return res.status(201).json({
@@ -273,10 +348,10 @@ const uploadThumb= async(req , res , next)=>{
     thumbnailUrl: thumbnailFilePath
   })
   } catch (error) {
-    if(req.file?.filename){
+
+    if(fs.existsSync(req.file.path)){
       fs.unlinkSync(req.file.path)
     }
-
     return res.status(500).json({
       success: false,
       message: error.message || "Something went wrong while uploading video"
@@ -287,10 +362,28 @@ const uploadThumb= async(req , res , next)=>{
 // get all created Video Data 
 const getAllVideo = asyncHandler(async (req, res, next) => {
 
+  if(req.query.page && parseInt(req.query.page) < 1){
+    return next(new ErrorHandler("page must be a positive integer",400))
+  }
+
+  if(req.query.pageSize && parseInt(req.query.pageSize) < 1){
+    return next(new ErrorHandler("size must be a positive integer",400))
+  }
+
   const page = parseInt(req.query.page) || 1; // default to page 1 if not provided
   const pageSize = parseInt(req.query.pageSize) || 10; // default to 10 items per page if not provided
 
   const offset = (page - 1) * pageSize;
+
+  // let token = req.headers['authorization'];
+  // const subscription = await checkPlanExpired(token)
+
+  // if(!subscription ||  subscription.length == 0){
+  //   return res.status(404).json({
+  //       success: false,
+  //       message: "User not found"
+  //     })
+  //   }
 
   const videoResult = await Video.findAndCountAll({
     where: {
@@ -307,21 +400,13 @@ const getAllVideo = asyncHandler(async (req, res, next) => {
     offset: offset,
   });
 
-  if(!videoResult || videoResult.length == 0){
-    return next(
-      new ErrorHandler(
-        "No data found",
-        404
-      )
-    )
-  }
-
   const totalPages = Math.ceil(videoResult.count / pageSize);
 
   return res.status(200).json({
     success: true,
     totalPages,
     currentPage: page,
+    record_limit_per_page:pageSize,
     videoResult: videoResult.rows
   });
 });
@@ -332,17 +417,22 @@ const getVideoById = asyncHandler(async (req, res, next) => {
   const {id} = req.params
   
   if(!id) {
-    return next(
-      new ErrorHandler(
-        "Video_id is Missing" ,
-         400
-      )
-    )
+    return next(new ErrorHandler("Video id is Missing" , 400))
   }
 
   if(!IsValidUUID(id)){
     return next(new ErrorHandler("Must be a valid UUID", 400))
   }
+
+  // let token = req.headers['authorization'];
+  // const subscription = await checkPlanExpired(token)
+
+  // if(!subscription ||  subscription.length == 0){
+  //     return res.status(404).json({
+  //       success: false,
+  //       message: "User not found"
+  //   })
+  // }
 
   const videoData = await Video.findOne({
     where: { 
@@ -352,12 +442,7 @@ const getVideoById = asyncHandler(async (req, res, next) => {
   })
   
   if (!videoData || videoData.isDeleted) {
-    return next(
-      new ErrorHandler(
-        "Video data not Found",
-        404
-      )
-    )
+    return next(new ErrorHandler("Video data not Found", 404))
   }
 
   return res.status(200).json({
@@ -373,12 +458,39 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
   const { id } = req.params
 
   if(!id) {
-    return next(new ErrorHandler("Video_id is Missing" , 400))
+    return next(new ErrorHandler("Video id is Missing" , 400))
   }
 
   if(!IsValidUUID(id)){
     return next(new ErrorHandler("Must be a valid UUID", 400))
   }
+
+  let token = req.headers['authorization'];
+  const subscription = await checkPlanExpired(token)
+
+  if(!subscription ||  subscription.length == 0){
+      return res.status(404).json({
+        success: false,
+        message: "Subscription plan not found"
+      })
+  }
+
+  if(!subscription?.data[0].isTrialActive){
+      // Get all Active Plan
+      const activeSubscriptions = subscription.data[0].subscriptions
+      .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
+
+      if(activeSubscriptions.length == 0){
+        res.status(400).json({
+          success: false,
+          message: "Please renew your subscription plan. Your current subscription is expired."
+        });      
+      }
+  }
+  else if(subscription?.data[0].isTrialActive && subscription?.data[0].endDate < new Date()){
+      return next(new ErrorHandler("Your trial is expired , Please renew your plan" , 400))
+  }
+
 
   const video = await Video.findOne({
     where:{
@@ -388,12 +500,7 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
   })
 
   if(!video || video.isDeleted){
-    return next(
-      new ErrorHandler(
-        "Video not found",
-         404
-      )
-    )
+    return next(new ErrorHandler("Video not found", 404))
   }
 
   const data = JSON.parse(JSON.stringify(req.body))
@@ -429,7 +536,10 @@ const updateVideoData = asyncHandler( async (req, res, next)=>{
 
   const [rowsUpdated, [updatedVideoData]] = await Video.update(
     {
-      ...data,
+      title:data.title,
+      videoFileUrl:data.videoFileUrl,
+      videoData: data.videoData,
+      videoSelectedFile: data.videoSelectedFile,
       videoLength: Number(data.videoLength)
     },
     {
@@ -463,17 +573,22 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   const { id } = req.params
 
   if (!id) {
-    return next(
-      new ErrorHandler(
-        "Missing Video id", 
-        400
-      )
-    );
+    return next(new ErrorHandler("Missing Video id", 400));
   }
 
   if(!IsValidUUID(id)){
     return next(new ErrorHandler("Must be valid UUID" , 400))
   }
+
+  // let token = req.headers['authorization'];
+  // const subscription = await checkPlanExpired(token)
+
+  // if(!subscription ||  subscription.length == 0){
+  //     return res.status(404).json({
+  //       success: false,
+  //       message: "User not found"
+  //   })
+  // }
 
   const video = await Video.findOne({
     where: {
@@ -483,12 +598,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   });
 
   if (!video || video.isDeleted) {
-    return next(
-      new ErrorHandler(
-        "VideoData not found", 
-        404
-      )
-    );
+    return next(new ErrorHandler("VideoData not found", 404));
   }
 
   const [deleteVideo] = await Video.update(
@@ -504,12 +614,7 @@ const deleteVideoData = asyncHandler(async (req,res,next)=>{
   );
 
   if (deleteVideo == 0) {
-    return next(
-      new ErrorHandler(
-        "Something went wrong while deleting the video", 
-        500
-      )
-    );
+    return next(new ErrorHandler("Something went wrong while deleting the video", 500));
   }
   
   return res.status(200).json({
@@ -524,17 +629,39 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
   const { id } = req.params
 
   if(!id) {
-    return next(
-      new ErrorHandler(
-        "Video_id is Missing" ,
-         400
-      )
-    )
+    return next(new ErrorHandler("Video id is Missing" , 400))
   }
 
   if(!IsValidUUID(id)){
     return next(new ErrorHandler("Must be a valid UUID", 400))
   }
+
+  let token = req.headers['authorization'];
+  const subscription = checkPlanExpired(token)
+
+  if(!subscription ||  subscription.length == 0){
+      return res.status(404).json({
+        success: false,
+        message: "Subscription plan not found"
+      })
+  }
+
+  if(!subscription?.data[0].isTrialActive){
+      // Get all Active Plan
+      const activeSubscriptions = subscription.data[0].subscriptions
+      .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
+
+      if(activeSubscriptions.length == 0){
+        res.status(400).json({
+          success: false,
+          message: "Please renew your subscription plan. Your current subscription is expired."
+        });      
+      }
+  }
+  else if(subscription?.data[0].isTrialActive && subscription?.data[0].endDate < new Date()){
+      return next(new ErrorHandler("Your trial is expired , Please renew your plan" , 400))
+  }
+
 
   const video = await Video.findOne({
     where:{
@@ -544,20 +671,15 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
   })
 
   if(!video || video.isDeleted){
-    return next(
-      new ErrorHandler(
-        "Video not found",
-         404
-      )
-    )
+    return next(new ErrorHandler("Video not found", 404))
+  }
+
+  if(video.isShared){
+    return next(new ErrorHandler("Video campaign already shared", 409))
   }
 
   if(!isShared || typeof(isShared) !== "boolean"){
-    return next(
-      new ErrorHandler(
-        "shared Field is required and type is boolean"
-      )
-    )
+    return next(new ErrorHandler("shared Field is required and type is boolean", 400))
   }
 
   await Video.update(
@@ -580,25 +702,30 @@ const updateVideoShared = asyncHandler( async(req , res, next)=>{
 
 const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
 
-  const { videoId } = req.params 
+  const { id } = req.params 
 
   // Extract the video ID from the request parameters
-  if(!videoId){
-      return next(
-          new ErrorHandler(
-              "videoId is missing",
-              400
-          )
-      )
+  if(!id){
+      return next(new ErrorHandler("videoId is missing",400))
   }
 
-  if(!IsValidUUID(videoId)){
+  if(!IsValidUUID(id)){
     return next(new ErrorHandler("Must be valid UUID", 400))
   }
 
+  // let token = req.headers['authorization'];
+  // const subscription = await checkPlanExpired(token)
+
+  // if(!subscription ||  subscription.length == 0){
+  //     return res.status(404).json({
+  //       success: false,
+  //       message: "User not found"
+  //   })
+  // }
+
   const data = await Analytic.findOne({
     where:{
-      videoId: videoId,
+      videoId: id,
     },
     include: [{
       model: Video,
@@ -612,12 +739,7 @@ const getAnalyticFeedbackData = asyncHandler(async(req,res,next)=>{
   
   
   if(!data){
-      return next(
-          new ErrorHandler(
-              "No data found with videoId associated with admin",
-              404
-          )
-      )
+      return next(new ErrorHandler("No data found with videoId associated with admin",404))
   }
 
   // Return the feedback as a response
@@ -637,9 +759,36 @@ const summeryResponse = async (req, res, next) => {
       return next(new ErrorHandler("Mising required field id", 400));
     }
 
-    // if (!IsValidUUID(id)) {
-    //   return next(new ErrorHandler("Must be a valid UUID", 400));
-    // }
+    if (!IsValidUUID(id)) {
+      return next(new ErrorHandler("Must be a valid UUID", 400));
+    }
+
+    let token = req.headers['authorization'];
+    const subscription = checkPlanExpired(token)
+
+    if(!subscription ||  subscription.length == 0){
+      return res.status(404).json({
+        success: false,
+        message: "Subscription plan not found"
+      })
+    }
+
+    if(!subscription?.data[0].isTrialActive){
+      // Get all Active Plan
+      const activeSubscriptions = subscription.data[0].subscriptions
+      .filter( plan => new Date(plan.startDate) <= new Date() && new Date(plan.endDate) >= new Date())
+
+      if(activeSubscriptions.length == 0){
+        res.status(400).json({
+          success: false,
+          message: "Please renew your subscription plan. Your current subscription is expired."
+        });      
+      }
+    }
+    else if(subscription?.data[0].isTrialActive && subscription?.data[0].endDate < new Date()){
+      return next(new ErrorHandler("Your trial is expired , Please renew your plan" , 400))
+    }
+
 
     const analyticResponse = await Analytic.findByPk(id,{
       include: [{
@@ -825,3 +974,134 @@ module.exports = {
   uploadThumb,
   summeryResponse,
 }
+
+
+
+const createVideoDatas = asyncHandler(async (req, res, next) => {
+  const data = JSON.parse(JSON.stringify(req.body));
+
+  // Validate title (only letters and numbers)
+  const titleRegex = /^[a-zA-Z0-9\s]+$/;
+  if (!data.title || typeof data.title !== 'string' || data.title.trim() === '' || !titleRegex.test(data.title)) {
+    return next(new ErrorHandler('Title is required and must be a non-empty string containing only letters and numbers', 400));
+  }
+
+  // Validate videoSelectedFile
+  if (!data.videoSelectedFile || typeof data.videoSelectedFile !== 'object') {
+    return next(new ErrorHandler('Video selected file is required and must be an object', 400));
+  }
+
+  const { id, videoSrc, questions, thumbnail, name, thumbnails } = data.videoSelectedFile;
+
+  if (!id || typeof id !== 'string') {
+    return next(new ErrorHandler('Video selected file must contain a valid id', 400));
+  }
+
+  if (!videoSrc || typeof videoSrc !== 'string') {
+    return next(new ErrorHandler('Video selected file must contain a valid videoSrc', 400));
+  }
+
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return next(new ErrorHandler('Video selected file must contain a non-empty array of questions', 400));
+  }
+
+  for (const question of questions) {
+    if (!question.id || typeof question.id !== 'string' || !question.question || typeof question.question !== 'string') {
+      return next(new ErrorHandler('Each question must have a valid id and question text', 400));
+    }
+    if (!Array.isArray(question.answers) || question.answers.length === 0) {
+      return next(new ErrorHandler('Each question must contain a non-empty array of answers', 400));
+    }
+    for (const answer of question.answers) {
+      if (!answer.id || typeof answer.id !== 'string' || !answer.answer || typeof answer.answer !== 'string') {
+        return next(new ErrorHandler('Each answer must have a valid id and answer text', 400));
+      }
+    }
+  }
+
+  if (!thumbnail || typeof thumbnail.url !== 'string' || typeof thumbnail.timestamp !== 'string') {
+    return next(new ErrorHandler('Video selected file must contain a valid thumbnail with url and timestamp', 400));
+  }
+
+  if (!name || typeof name !== 'string') {
+    return next(new ErrorHandler('Video selected file must contain a valid name', 400));
+  }
+
+  if (!Array.isArray(thumbnails) || thumbnails.length === 0) {
+    return next(new ErrorHandler('Video selected file must contain a non-empty array of thumbnails', 400));
+  }
+
+  for (const thumb of thumbnails) {
+    if (!thumb.url || typeof thumb.url !== 'string' || isNaN(thumb.time)) {
+      return next(new ErrorHandler('Each thumbnail must contain a valid url and time', 400));
+    }
+  }
+
+  // Validate videoData
+  if (!Array.isArray(data.videoData) || data.videoData.length === 0) {
+    return next(new ErrorHandler('Video data is required and must be a non-empty array', 400));
+  }
+
+  for (const video of data.videoData) {
+    if (!video.id || typeof video.id !== 'string') {
+      return next(new ErrorHandler('Each videoData item must contain a valid id', 400));
+    }
+    if (!video.videoSrc || typeof video.videoSrc !== 'string') {
+      return next(new ErrorHandler('Each videoData item must contain a valid videoSrc', 400));
+    }
+    if (!Array.isArray(video.questions) || video.questions.length === 0) {
+      return next(new ErrorHandler('Each videoData item must contain a non-empty array of questions', 400));
+    }
+    for (const question of video.questions) {
+      if (!question.id || typeof question.id !== 'string' || !question.question || typeof question.question !== 'string') {
+        return next(new ErrorHandler('Each question in videoData must have a valid id and question text', 400));
+      }
+      if (!Array.isArray(question.answers) || question.answers.length === 0) {
+        return next(new ErrorHandler('Each question in videoData must contain a non-empty array of answers', 400));
+      }
+      for (const answer of question.answers) {
+        if (!answer.id || typeof answer.id !== 'string' || !answer.answer || typeof answer.answer !== 'string') {
+          return next(new ErrorHandler('Each answer in videoData must have a valid id and answer text', 400));
+        }
+      }
+    }
+    if (!video.thumbnail || typeof video.thumbnail.url !== 'string' || typeof video.thumbnail.timestamp !== 'string') {
+      return next(new ErrorHandler('Each videoData item must contain a valid thumbnail with url and timestamp', 400));
+    }
+  }
+
+  // Validate videoFileUrl
+  if (!Array.isArray(data.videoFileUrl) || data.videoFileUrl.length === 0) {
+    return next(new ErrorHandler('Video file URL is required and must be a non-empty array', 400));
+  }
+
+  if (!data.videoFileUrl.every(url => typeof url === 'string' && url.trim() !== '')) {
+    return next(new ErrorHandler('All video file URLs must be non-empty strings', 400));
+  }
+
+  // Validate videoLength
+  if (!data.videoLength || isNaN(data.videoLength) || data.videoLength <= 0) {
+    return next(new ErrorHandler('Video length is required and must be a number greater than 0', 400));
+  }
+
+  // Validate createdBy (assuming it comes from req.user)
+  if (!req.user || !req.user.obj || !req.user.obj.id) {
+    return next(new ErrorHandler('Created by information is required', 400));
+  }
+
+  // Create video entry in the database
+  const video = await Video.create({
+    title: data.title,
+    videoFileUrl: data.videoFileUrl,
+    videoData: data.videoData,
+    videoSelectedFile: data.videoSelectedFile,
+    videoLength: data.videoLength,
+    createdBy: req.user.obj.id,
+  });
+
+  return res.status(201).json({
+    success: true,
+    message: "Video Data Created Successfully",
+    videoData: video,
+  });
+});

@@ -19,9 +19,9 @@ const Client = sequelize.define("Client",{
     otpExpire:{
         type: DataTypes.DATE
     },
-    userId:{
-        type: DataTypes.STRING,
-        unique: true
+    adminId:{
+        type: DataTypes.UUID,
+        allowNull: false
     }
 })
 

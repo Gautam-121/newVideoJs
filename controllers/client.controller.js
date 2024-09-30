@@ -16,6 +16,7 @@ const PlanRestrict = require("../models/planrestrict.model.js");
 const ejs = require('ejs');
 const { default: axios } = require("axios");
 const path = require("path")
+const { getUserSubscriptions } = require("../utils/saasApis.js")
 
 
 // Helper function for decoded signRequest by facebook
@@ -58,54 +59,37 @@ const notifyUserApproachingVideoLimit = async (user, video) => {
     }
 };
 
-// handler function to get User subscription
-const getUserSubscriptions = async (apiKey, userId, res) => {
-    try {
-
-      const SAAS_API_URL = "https://stream.xircular.io/api/v1/subscription/getSubscriptionByApiKey"
-      const subscriptionResponse = await axios.get(`${SAAS_API_URL}`, {
-        headers: {
-          'X-API-Key': apiKey || "835aa9fd7263034ee1ebb8d61a8d43f9757a0fe962408e512447002daafff6c4"
-        },
-      });
-      
-      if(!subscriptionResponse ||  subscriptionResponse.data.length == 0){
-        return false
-      }
-  
-      return subscriptionResponse.data[0] 
-    } catch (error) {
-      console.error('Error fetching user subscription:', error.message);
-      return false
-    }
-}
-
 const registerLogin = asyncHandler(async(req,res,next)=>{
 
     const { email } = req.body
+    const apiKey = req.headers["x-api-key"]
 
-    if(!email){
-        return next(
-            new ErrorHandler(
-                "email is required"
-            )
-        )
+    if(!apiKey){
+      return next(new ErrorHandler("missing api-key" , 401))
     }
 
-    if(!isValidEmail(email)){
-        return next(
-            new ErrorHandler(
-                "Invalid email id",
-                400
-            )
-        )
+    if(!email){
+        return next(new ErrorHandler("email is required", 400))
+    }
+
+    if(!isValidEmail(email.trim())){
+        return next(new ErrorHandler("Invalid email id", 400))
+    }
+
+    // fetch User subscription
+    const isAdminExist = await getUserSubscriptions(apiKey);
+
+    if (!isAdminExist) {
+      return next(new ErrorHandler("Admin not found", 404));
     }
 
     const existingClient  = await Client.findOne({
         where:{
-            email: email.trim()
+            email: email.trim(),
+            adminId: isAdminExist.id
         },
     })
+
 
     if(existingClient){
 
@@ -133,42 +117,31 @@ const registerLogin = asyncHandler(async(req,res,next)=>{
 
             existingClient.otp = null
             existingClient.otpExpire = null
-
             await existingClient.save({validate: false})
 
-            return next(
-                new ErrorHandler(
-                    "Something went wrong while sending otp to there email",
-                    500
-                )
-            )
+            return next(new ErrorHandler("Something went wrong while sending otp to there email",500))
         }
     }
 
-    const user = await Client.create({
-        email
-    })
+    const user = await Client.create({email:email.trim(), adminId : isAdminExist.id })
 
     if(!user){
-        return next(
-            new ErrorHandler(
-                "Something went wrong while registering client",
-                400
-            )
-        )
+        return next(new ErrorHandler("Something went wrong while registering client", 400))
     }
 
     const otp = user.getOtp()
-    const message = `Thank you for using VideoFeedback App. To complete your registration process, please use the following One-Time Password (OTP):\n\nOTP: ${otp}\n\nThis OTP is valid for the next 10 minutes. For security reasons, please do not share this OTP with anyone.\n\nIf you did not initiate this request, please ignore this email.`
-
     await user.save({validate: false})
 
     try {
 
+       // Render the EJS template
+       const templatePath = path.join(__dirname, '../views/otpNotifications.ejs');
+       const otpTemplate = await ejs.renderFile(templatePath, { otp: otp });
+
          await sendEmail({
             email: user.email,
             subject: "Your One-Time Password (OTP) for VideoFeedback App",
-            message
+            message: otpTemplate
         })
 
         return res.status(200).json({
@@ -181,106 +154,108 @@ const registerLogin = asyncHandler(async(req,res,next)=>{
 
         user.otp = null
         user.otpExpire = null
-
         await user.save({validate: false})
 
-        return next(
-            new ErrorHandler(
-                "Something went wrong while sending otp to there email",
-                500
-            )
-        )
+        return next(new ErrorHandler("Something went wrong while sending otp to there email", 500))
     }
 })
 
 const verifyOtp = asyncHandler(async(req,res,next)=>{
 
     const { email, otp } = req.body;
+    const apiKey = req.headers["x-api-key"]
 
-    if(!email || !otp){
-        return next(
-            new ErrorHandler(
-                "Email and otp is required",
-                400
-            )
-        )
+    if(!apiKey){
+      return next(new ErrorHandler("missing api-key" , 401))
     }
 
-    if(!isValidEmail(email)){
-        return next(
-            new ErrorHandler(
-                "Invalid email id",
-                400
-            )
-        )
+    if(!email || !otp){
+        return next(new ErrorHandler("email and otp is required",400))
+    }
+
+    if(typeof otp!=="string"){
+      return next(new ErrorHandler("otp must be string", 400))
+    }
+
+    if(!isValidEmail(email.trim())){
+        return next(new ErrorHandler("Invalid email id", 400))
+    }
+
+    // fetch User subscription
+    const isAdminExist = await getUserSubscriptions(apiKey);
+
+    if (!isAdminExist) {
+      return next(new ErrorHandler("Admin not found", 404));
     }
 
     const user = await Client.findOne({
         where:{
             email: email.trim(),
-            otp: otp,
-            otpExpire:{
-                [Op.gt] : Date.now()
-            }
+            adminId:isAdminExist.id
         }
     })
 
     if(!user){
-        return next(
-            new ErrorHandler(
-                "Invalid otp",
-                400
-            )
-        )
+      return next(new ErrorHandler("user not found" , 404))
     }
 
-    if(user.otp != otp){
-        return new ErrorHandler(
-            "Invalid otp",
-            400
-        )
+    if(user.otp !== otp){
+      return next(new ErrorHandler("Invalid otp", 400))
+    }
+
+    if(user.otpExpire < Date.now() ){
+      return next(new ErrorHandler("otp is exipred" , 400))
     }
 
     user.otp = null
     user.otpExpire = null
     
     await user.save({validate: false})
-
     const accessToken = await user.generateToken()
+
 
     return res.status(200).json({
         success: true,
         message: "Authentication successful",
-        user,
+        user:{
+          id:user.id,
+          email:user.email,
+          adminId:user.adminId,
+          createdAt:user.createdAt,
+          updatedAt:user.updatedAt
+        },
         accessToken
     })
 })
 
 const socialLogin = asyncHandler(async(req,res,next)=>{
 
-    const { email , userId } = req.body
+    const { email } = req.body
+    const apiKey = req.headers["x-api-key"]
+
+    if(!apiKey){
+      return next(new ErrorHandler("missing api-key" , 401))
+    }
 
     if(!email){
-        return next(
-            new ErrorHandler(
-                "Email is required",
-                 400
-            )
-        )
+        return next( new ErrorHandler("email is required", 400))
     }
 
     if(!isValidEmail(email)){
-        return next(
-            new ErrorHandler(
-                "Invalid email id",
-                400
-            )
-        )
+        return next(new ErrorHandler( "Invalid email id", 400))
     }
+
+   // fetch User subscription
+   const isAdminExist = await getUserSubscriptions(apiKey);
+
+   if(!isAdminExist) {
+     return next(new ErrorHandler("Admin not found", 404));
+   }
 
     const existingClient = await Client.findOne({
         where:{
             email: email.trim(),
+            adminId:isAdminExist.id
         },
         attributes:{
             exclude:["otp" , "otpExpire"]
@@ -289,13 +264,7 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     if(existingClient){
 
-        if(userId){
-            existingClient.userId = userId
-            await existingClient.save({validate: false})
-        }
-
         const accessToken = await existingClient.generateToken()
-
         return res.status(200).json({
             success: true,
             message: "Authentication successfull",
@@ -306,7 +275,7 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
     const user = await Client.create({
         email: email,
-        userId: userId
+        adminId: isAdminExist.id
     })
 
 
@@ -317,12 +286,7 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
     })
 
     if(!userCreate){
-        return next(
-            new ErrorHandler(
-                "Something went wrong while registering the client",
-                500
-            )
-        )
+        return next(new ErrorHandler("Something went wrong while registering the client",500))
     }
 
     const accessToken = await user.generateToken()
@@ -337,35 +301,24 @@ const socialLogin = asyncHandler(async(req,res,next)=>{
 
 const getVideoByClient = asyncHandler(async (req , res , next)=>{
 
-    const {customerId , videoId} = req.params
+    const { id } = req.params
     
-    if(!customerId || !videoId) {
-      return next(
-        new ErrorHandler(
-          "Please send me all required params" ,
-           400
-        )
-      )
+    if(!id) {
+      return next(new ErrorHandler("missing video id" , 400))
     }
 
-    if(!IsValidUUID(customerId) || !IsValidUUID(videoId)){
+    if(!IsValidUUID(id)){
         return next(new ErrorHandler("Must be a valid UUID", 400))
     }
   
-    const videoData = await Video.findOne({
-      where: { 
-        video_id: videoId,
-        createdBy: customerId
-      }
-    })
-    
+    const videoData = await Video.findByPk(id)
+
     if (!videoData || videoData.isDeleted) {
-      return next(
-        new ErrorHandler(
-          "Video data not Found",
-          404
-        )
-      )
+      return next( new ErrorHandler(`Video data not found of id: ${id}`, 404))
+    }
+
+    if(videoData.createdBy !==  req.user.adminId){
+      return next(new ErrorHandler("Unauthorized to access the resource", 403))
     }
   
     return res.status(200).json({
@@ -379,13 +332,14 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
     const transaction = await sequelize.transaction();
     try {
       const { response } = req.body;
+      const apiKey = req.headers["x-api-key"]
 
       if (!req.params.videoId) {
         return next(new ErrorHandler("videoId is missing", 400));
       }
 
-      if (!req.params.apiKey) {
-        return next(new ErrorHandler("Misiing Api key", 400));
+      if (!apiKey) {
+        return next(new ErrorHandler("Misiing Api key", 401));
       }
 
       if (!IsValidUUID(req.params.videoId)) {
@@ -485,12 +439,8 @@ const storeFeedback = asyncHandler(async (req, res, next) => {
       });
 
       // fetch User subscription
-      const subscription = await getUserSubscriptions(
-        req.params.apiKey,
-        videoQuestion.createdBy,
-        res
-      );
-      console.log("subscription", subscription);
+      const subscription = await getUserSubscriptions(apiKey);
+
       if (!subscription) {
         return next(new ErrorHandler("User subscription not found", 400));
       }
@@ -1113,11 +1063,7 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
     const { videoId } = req.params
 
     if(!videoId){
-        return next(
-            new ErrorHandler(
-                "Please provide all params field"
-            )
-        )
+        return next(new ErrorHandler("missing video id", 400))
     }
 
     if(!IsValidUUID(videoId)){
@@ -1127,7 +1073,7 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
     const videoExist = await Video.findByPk(videoId)
 
     if(!videoExist || videoExist.isDeleted){
-        return next(new ErrorHandler(`Video not exist with id ${videoId}`, 400))
+        return next(new ErrorHandler(`Video not exist with id ${videoId}`, 404))
     }
 
     const feedbackExist = await Feedback.findOne({
@@ -1138,12 +1084,7 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
     });
 
     if(!feedbackExist){
-        return next(
-            new ErrorHandler(
-                "No feedback found",
-                404
-            )
-        )
+        return next(new ErrorHandler("No feedback found", 404))
     }
 
     return res.status(200).json({
@@ -1155,18 +1096,22 @@ const getFeedBack = asyncHandler( async (req , res , next)=>{
 
 const getAppBrandingByClient = asyncHandler(async(req , res , next)=>{
 
-    if(!req.params.id){
-        return next(new ErrorHandler("Missing id" , 400))
+    const apiKey = req.headers["x-api-key"]
+
+    if(!apiKey){
+      return next(new ErrorHandler("missing api-key" , 401))
+    }
+    // fetch User subscription
+    const isAdminExist = await getUserSubscriptions(apiKey);
+
+    if(!isAdminExist) {
+      return next(new ErrorHandler("Admin not found", 404));
     }
 
-    if(!IsValidUUID(req.params.id)){
-        return next(new ErrorHandler("Must be valid UUID" , 40))
-    }
-
-    const appBranding = await AppBranding.findOne({where:{createdBy : req.params.id}})
+    const appBranding = await AppBranding.findOne({where:{createdBy : isAdminExist.id}})
 
     if(!appBranding){
-        return next(new ErrorHandler(`appBranding not found with id ${req.params.id}`,404))
+        return next(new ErrorHandler(`appBranding not found with id ${isAdminExist.id}`,404))
     }
 
     return res.status(200).json({

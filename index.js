@@ -128,6 +128,6 @@ connectDB().then(() => {
     })
 })
 .catch((err) => {
-    console.log("MONGO db connection failed !!! ", err);
+    console.log("db connection failed !!! ", err);
 })
 
